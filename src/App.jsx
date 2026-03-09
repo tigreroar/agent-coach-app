@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { 
   CheckCircle2, 
   History, 
@@ -409,6 +409,7 @@ function OnboardingView({ allProfiles, onComplete }) {
   const [photoURL, setPhotoURL] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // La función handleImageUpload ya existía, ahora el UI la usará
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -477,6 +478,27 @@ function OnboardingView({ allProfiles, onComplete }) {
             <label className="block text-sm font-bold text-slate-700 mb-1">Phone Number</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium" required />
           </div>
+          
+          {/* NUEVO CÓDIGO AÑADIDO: Sección para subir foto de perfil */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload} 
+              id="photo-upload" 
+              className="hidden" 
+            />
+            <label 
+              htmlFor="photo-upload" 
+              className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium"
+            >
+              <Camera size={20} className={photoURL ? "text-amber-500" : "text-slate-400"} />
+              <span className="text-sm">{photoURL ? 'Photo uploaded - Click to change' : 'Upload a Profile Photo'}</span>
+            </label>
+          </div>
+          {/* FIN DEL NUEVO CÓDIGO */}
+
           <div className="pt-2">
             <button type="submit" disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70">
               {loading ? 'Accessing...' : 'Log in / Sign up'}
