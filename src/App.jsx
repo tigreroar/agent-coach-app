@@ -18,7 +18,9 @@ import {
   BellRing,
   Camera,
   X,
-  Rocket
+  Rocket,
+  Home,
+  Briefcase
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -265,9 +267,12 @@ export default function App() {
     if (!activeUserId) return;
     const logId = `${activeUserId}_${date}`;
     
-    const existing = myLogs.find(l => l.date === date) || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0 };
+    // Incluimos openHouse y networking
+    const existing = myLogs.find(l => l.date === date) || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0 };
     const merged = { ...existing, ...updates };
-    const score = (merged.calls || 0) + (merged.emails || 0) + (merged.texts || 0) + (merged.posts || 0) + (merged.crm || 0);
+    
+    // Calcular el score sumando todo. Open House y Networking valen 10 puntos cada uno.
+    const score = (merged.calls || 0) + (merged.emails || 0) + (merged.texts || 0) + (merged.posts || 0) + (merged.crm || 0) + ((merged.openHouse || 0) * 10) + ((merged.networking || 0) * 10);
 
     const { error } = await supabase.from('daily_logs').upsert({
       id: logId,
@@ -278,6 +283,8 @@ export default function App() {
       texts: merged.texts || 0,
       posts: merged.posts || 0,
       crm: merged.crm || 0,
+      openHouse: merged.openHouse || 0, // Nuevo campo
+      networking: merged.networking || 0, // Nuevo campo
       notes: merged.notes || '',
       score: score,
       updatedAt: new Date().toISOString()
@@ -460,7 +467,7 @@ function OnboardingView({ allProfiles, onComplete }) {
 
 function RankingView({ profiles, logs, todayStr, isAdmin }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 75; 
+  const maxWeeklyPoints = 95; // ACTUALIZADO META SEMANAL
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
     const score = userLogs.reduce((sum, l) => sum + (l.score || 0), 0);
@@ -494,7 +501,7 @@ function RankingView({ profiles, logs, todayStr, isAdmin }) {
                     <div className="flex items-center gap-4">
                       <div className="relative">
                         <img src={user.photoURL || generateAvatar(user.name)} alt={user.name} className="w-12 h-12 rounded-full object-cover bg-gray-800" style={isFirst ? { boxShadow: '0 0 15px rgba(178, 255, 5, 0.4)' } : {}} />
-                        <div className={`absolute -bottom-1 -right-2 px-1.5 py-0.5 rounded-md text-[10px] font-black text-[#111] ${bgPctColor} shadow-sm border border-[#111]`}>{user.percent}%</div>
+                        <div className={`absolute -bottom-1 -right-2 px-1.5 py-0.5 rounded-md text-[10px] font-black text-[#111] ${bgPctColor} shadow-sm border border-[#111]`}>{Math.min(user.percent, 100)}%</div>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-white font-bold text-base">{user.name}</span>
@@ -534,9 +541,13 @@ function TodayView({ dateStr, log, onSave, profile, onEnableNotifications }) {
     );
   }
 
-  const data = log || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, notes: '' };
-  const totalScore = (data.calls || 0) + (data.emails || 0) + (data.texts || 0) + (data.posts || 0) + (data.crm || 0);
-  const percent = Math.round((totalScore / 15) * 100);
+  const data = log || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0, notes: '' };
+  
+  // Cálculo total: El base más los 10 puntos si hicieron Open House y los 10 puntos si hicieron Networking.
+  const totalScore = (data.calls || 0) + (data.emails || 0) + (data.texts || 0) + (data.posts || 0) + (data.crm || 0) + ((data.openHouse || 0) * 10) + ((data.networking || 0) * 10);
+  
+  // Denominador diario de 19 para ser equitativo con los 95 a la semana (95/5 = 19)
+  const percent = Math.round((totalScore / 19) * 100);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -547,9 +558,9 @@ function TodayView({ dateStr, log, onSave, profile, onEnableNotifications }) {
         </div>
       )}
       <div className="bg-slate-900 rounded-3xl p-6 shadow-lg border border-slate-800">
-        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalScore}<span className="text-lg text-slate-500 font-bold">/15</span></p></div></div>
-        <div className="w-full bg-slate-800/50 rounded-full h-3 mt-4 overflow-hidden shadow-inner"><div className="bg-gradient-to-r from-amber-500 to-amber-400 h-3 rounded-full transition-all duration-700 ease-out" style={{ width: `${percent}%` }}></div></div>
-        {percent === 100 && <p className="text-amber-400 text-sm font-bold mt-4 flex items-center gap-1.5"><CheckCircle2 size={18} /> Incredible! You crushed it today.</p>}
+        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalScore}<span className="text-lg text-slate-500 font-bold">/19</span></p></div></div>
+        <div className="w-full bg-slate-800/50 rounded-full h-3 mt-4 overflow-hidden shadow-inner"><div className="bg-gradient-to-r from-amber-500 to-amber-400 h-3 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.min(percent, 100)}%` }}></div></div>
+        {percent >= 100 && <p className="text-amber-400 text-sm font-bold mt-4 flex items-center gap-1.5"><CheckCircle2 size={18} /> Incredible! You crushed it today.</p>}
       </div>
       <div className="space-y-4">
         <CounterCard icon={Phone} title="Calls" max={5} value={data.calls || 0} onChange={(v) => onSave({ calls: v })} />
@@ -557,6 +568,10 @@ function TodayView({ dateStr, log, onSave, profile, onEnableNotifications }) {
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.posts || 0} onChange={(v) => onSave({ posts: v })} />
         <CounterCard icon={UserPlus} title="CRM Adds" max={1} value={data.crm || 0} onChange={(v) => onSave({ crm: v })} />
+        
+        {/* NUEVAS SECCIONES */}
+        <CounterCard icon={Home} title="Open House (10 pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
+        <CounterCard icon={Briefcase} title="Networking Event (10 pts)" max={1} value={data.networking || 0} onChange={(v) => onSave({ networking: v })} />
       </div>
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
         <label className="block font-bold text-slate-800 mb-3">Today's Wins / Obstacles</label>
@@ -570,19 +585,28 @@ function SummaryView({ logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
   const weeklyLogs = logs.filter(l => l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
   const totals = {
-    calls: weeklyLogs.reduce((sum, l) => sum + (l.calls || 0), 0), emails: weeklyLogs.reduce((sum, l) => sum + (l.emails || 0), 0),
-    texts: weeklyLogs.reduce((sum, l) => sum + (l.texts || 0), 0), posts: weeklyLogs.reduce((sum, l) => sum + (l.posts || 0), 0),
-    crm: weeklyLogs.reduce((sum, l) => sum + (l.crm || 0), 0), score: weeklyLogs.reduce((sum, l) => sum + (l.score || 0), 0)
+    calls: weeklyLogs.reduce((sum, l) => sum + (l.calls || 0), 0), 
+    emails: weeklyLogs.reduce((sum, l) => sum + (l.emails || 0), 0),
+    texts: weeklyLogs.reduce((sum, l) => sum + (l.texts || 0), 0), 
+    posts: weeklyLogs.reduce((sum, l) => sum + (l.posts || 0), 0),
+    crm: weeklyLogs.reduce((sum, l) => sum + (l.crm || 0), 0), 
+    openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouse || 0), 0), // Sumatoria
+    networking: weeklyLogs.reduce((sum, l) => sum + (l.networking || 0), 0), // Sumatoria
+    score: weeklyLogs.reduce((sum, l) => sum + (l.score || 0), 0)
   };
+  
   const daysLogged = weeklyLogs.filter(l => l.score > 0).length;
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossible = daysPassed * 15; const weeklyPercent = maxPossible > 0 ? Math.round((totals.score / maxPossible) * 100) : 0;
+  
+  // META SEMANAL ACTUALIZADA A 95
+  const maxPossible = 95; 
+  const weeklyPercent = maxPossible > 0 ? Math.round((totals.score / maxPossible) * 100) : 0;
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Weekly Score</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{totals.score}<span className="text-2xl text-slate-300">/75</span></div>
+        <div className="text-6xl font-black text-slate-900 mb-3">{totals.score}<span className="text-2xl text-slate-300">/95</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -592,7 +616,15 @@ function SummaryView({ logs, todayStr }) {
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
         <h3 className="font-bold text-slate-900 mb-5">Activity Breakdown</h3>
         <div className="space-y-4">
-          {[{ label: 'Calls', icon: Phone, total: totals.calls, max: 25 }, { label: 'Emails', icon: Mail, total: totals.emails, max: 20 }, { label: 'Texts', icon: MessageSquare, total: totals.texts, max: 15 }, { label: 'Social Posts', icon: Share2, total: totals.posts, max: 10 }, { label: 'CRM Adds', icon: UserPlus, total: totals.crm, max: 5 }].map((item) => {
+          {[
+            { label: 'Calls', icon: Phone, total: totals.calls, max: 25 }, 
+            { label: 'Emails', icon: Mail, total: totals.emails, max: 20 }, 
+            { label: 'Texts', icon: MessageSquare, total: totals.texts, max: 15 }, 
+            { label: 'Social Posts', icon: Share2, total: totals.posts, max: 10 }, 
+            { label: 'CRM Adds', icon: UserPlus, total: totals.crm, max: 5 },
+            { label: 'Open House', icon: Home, total: totals.openHouse, max: 5 }, // NUEVO
+            { label: 'Networking', icon: Briefcase, total: totals.networking, max: 5 } // NUEVO
+          ].map((item) => {
             const Icon = item.icon;
             return (
               <div key={item.label} className="flex items-center justify-between">
@@ -629,11 +661,13 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
       ) : (
         sortedLogs.map(log => {
           if (isWeekend(log.date) && !log.notes) return null;
-          const isCurrentWeek = log.date >= startOfWeek && log.date <= todayStr; const pct = Math.round((log.score / 15) * 100); const canEdit = isCurrentWeek && !readOnly;
+          const isCurrentWeek = log.date >= startOfWeek && log.date <= todayStr; 
+          const pct = Math.round((log.score / 19) * 100); 
+          const canEdit = isCurrentWeek && !readOnly;
           return (
             <div key={log.date} className={`bg-white p-5 rounded-2xl border shadow-sm ${canEdit ? 'border-slate-200 hover:border-amber-400 cursor-pointer transition-all' : 'border-slate-100 opacity-80'}`} onClick={() => canEdit ? setEditingLog(log) : null}>
-              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct === 100 ? 'text-amber-500' : 'text-slate-400'}`}>{log.score}/15</span></div>
-              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${pct}%` }}></div></div>
+              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{log.score}/19</span></div>
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div></div>
               {log.notes && <p className="text-xs text-slate-500 font-medium italic bg-slate-50 p-3 rounded-xl border border-slate-100 line-clamp-2">"{log.notes}"</p>}
               {canEdit && <p className="text-[10px] text-amber-600/70 mt-3 uppercase tracking-wider font-bold">Tap to edit</p>}
             </div>
