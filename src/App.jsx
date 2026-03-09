@@ -108,7 +108,6 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox }) => (
         <h1 className="text-xl font-extrabold tracking-tight">AgentCoach<span className="text-amber-400">AI</span></h1>
       </div>
       <div className="flex items-center gap-3">
-        {/* Inbox Button */}
         {profile && (
           <button 
             onClick={onOpenInbox}
@@ -122,11 +121,9 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox }) => (
             )}
           </button>
         )}
-
         {profile && profile.photoURL && (
           <img src={profile.photoURL} alt="User" className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-800 object-cover" />
         )}
-        
         {onLogout && (
           <button onClick={onLogout} className="p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Log Out">
             <LogOut size={18} />
@@ -195,7 +192,6 @@ const CounterCard = ({ icon: Icon, title, max, value, onChange }) => {
 // --- INBOX MODAL ---
 function InboxModal({ messages, onClose, onMarkAsRead }) {
   useEffect(() => {
-    // Marcar todos como leídos al abrir
     const unreadMessages = messages.filter(m => !m.read);
     if (unreadMessages.length > 0) {
       onMarkAsRead(unreadMessages.map(m => m.id));
@@ -248,7 +244,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [logs, setLogs] = useState([]);
   const [allProfiles, setAllProfiles] = useState([]);
-  const [messages, setMessages] = useState([]); // Nuevo estado para mensajes
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ranking'); 
   const [showGreeting, setShowGreeting] = useState(false);
@@ -271,8 +267,7 @@ export default function App() {
     if (!activeUserId) return;
 
     const fetchAllData = async () => {
-      // Fetch Users
-      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
+      const { data: usersData } = await supabase.from('users').select('*');
       if (usersData) {
         setAllProfiles(usersData);
         const myProfile = usersData.find(u => u.id === activeUserId);
@@ -284,12 +279,10 @@ export default function App() {
         }
       }
 
-      // Fetch Logs
       const fifteenDaysAgoStr = getDaysAgoStr(15);
       const { data: logsData } = await supabase.from('daily_logs').select('*').gte('date', fifteenDaysAgoStr);
       if (logsData) setLogs(logsData);
 
-      // Fetch Messages
       const { data: msgData } = await supabase.from('messages').select('*').order('createdAt', { ascending: false });
       if (msgData) setMessages(msgData);
 
@@ -298,7 +291,6 @@ export default function App() {
 
     fetchAllData();
 
-    // Supabase Realtime subscriptions
     const usersSub = supabase.channel('custom-users').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, fetchAllData).subscribe();
     const logsSub = supabase.channel('custom-logs').on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs' }, fetchAllData).subscribe();
     const msgSub = supabase.channel('custom-msg').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchAllData).subscribe();
@@ -323,7 +315,6 @@ export default function App() {
 
   const myLogs = useMemo(() => logs.filter(l => l.userId === activeUserId), [logs, activeUserId]);
   
-  // Filtrar los mensajes para el usuario activo (los dirigidos a él, o los broadcast donde receiverId es null)
   const myMessages = useMemo(() => {
     return messages.filter(m => m.receiverId === activeUserId || m.receiverId === null);
   }, [messages, activeUserId]);
@@ -331,9 +322,7 @@ export default function App() {
   const unreadCount = myMessages.filter(m => !m.read).length;
 
   const handleMarkMessagesAsRead = async (msgIds) => {
-    // Actualizar localmente rápido
     setMessages(prev => prev.map(m => msgIds.includes(m.id) ? { ...m, read: true } : m));
-    // Actualizar en DB
     for (const id of msgIds) {
       await supabase.from('messages').update({ read: true }).eq('id', id);
     }
@@ -345,6 +334,8 @@ export default function App() {
     
     const existing = myLogs.find(l => l.date === date) || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0 };
     const merged = { ...existing, ...updates };
+    
+    // Este SCORE es el puntaje del Ranking ponderado (Llamadas=1, OpenHouse=10, etc)
     const score = (merged.calls || 0) + (merged.emails || 0) + (merged.texts || 0) + (merged.posts || 0) + (merged.crm || 0) + ((merged.openHouse || 0) * 10) + ((merged.networking || 0) * 10);
 
     const { error } = await supabase.from('daily_logs').upsert({
@@ -386,7 +377,7 @@ export default function App() {
       )}
 
       <Header 
-        title={activeTab === 'today' ? "Today's 54321" : activeTab === 'history' ? 'Your History' : activeTab === 'summary' ? 'Weekly Summary' : activeTab === 'ranking' ? 'Weekly Ranking' : 'Coach Dashboard'} 
+        title={activeTab === 'today' ? "Today's Activities" : activeTab === 'history' ? 'Your History' : activeTab === 'summary' ? 'Weekly Summary' : activeTab === 'ranking' ? 'Weekly Ranking' : 'Coach Dashboard'} 
         onLogout={handleLogout}
         profile={profile}
         unreadCount={unreadCount}
@@ -400,13 +391,7 @@ export default function App() {
           {activeTab === 'summary' && <SummaryView logs={myLogs} todayStr={todayStr} />}
           {activeTab === 'ranking' && <RankingView profiles={allProfiles} logs={logs} todayStr={todayStr} isAdmin={profile?.role === 'admin'} />}
           {activeTab === 'admin' && profile?.role === 'admin' && (
-            <AdminView 
-              logs={logs} 
-              profiles={allProfiles} 
-              todayStr={todayStr} 
-              activeUserId={activeUserId} 
-              supabase={supabase} 
-            />
+            <AdminView logs={logs} profiles={allProfiles} todayStr={todayStr} activeUserId={activeUserId} supabase={supabase} />
           )}
         </div>
       </main>
@@ -505,9 +490,12 @@ function OnboardingView({ allProfiles, onComplete }) {
 
 function RankingView({ profiles, logs, todayStr, isAdmin }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 95; 
+  const maxWeeklyPoints = 175; // 175 PUNTOS (Ponderados con OH y Networking a 10pts)
+  
   const leaderboard = profiles.map(profile => {
+    // Al filtrar por startOfWeek, cada Lunes esto empieza en 0 automáticamente
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
+    // La DB guarda el puntaje (score) ponderado sumado previamente
     const score = userLogs.reduce((sum, l) => sum + (l.score || 0), 0);
     const percent = Math.round((score / maxWeeklyPoints) * 100);
     return { ...profile, score, percent };
@@ -566,7 +554,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
       <div className="flex flex-col items-center justify-center text-center py-12 px-4">
         <div className="bg-white p-6 rounded-full shadow-sm border border-slate-100 mb-6"><TrendingUp size={48} className="text-amber-500" /></div>
         <h2 className="text-2xl font-extrabold text-slate-900 mb-2">It's the Weekend!</h2>
-        <p className="text-slate-500 mb-8 font-medium">No 54321 required today. Take a break or review your week.</p>
+        <p className="text-slate-500 mb-8 font-medium">No activities required today. Take a break or review your week.</p>
         <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm w-full text-left">
           <h3 className="font-bold text-slate-800 mb-3">Weekend Reflection</h3>
           <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" placeholder="Jot down your ideas or plans for next week..." rows={4} value={log?.notes || ''} onChange={(e) => onSave({ notes: e.target.value })} />
@@ -576,13 +564,15 @@ function TodayView({ dateStr, log, onSave, profile }) {
   }
 
   const data = log || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0, notes: '' };
-  const totalScore = (data.calls || 0) + (data.emails || 0) + (data.texts || 0) + (data.posts || 0) + (data.crm || 0) + ((data.openHouse || 0) * 10) + ((data.networking || 0) * 10);
-  const percent = Math.round((totalScore / 19) * 100);
+  
+  // Para la vista Today solo contamos la cantidad de ITEMS o ACTIVIDADES completadas (Max 17)
+  const totalItems = (data.calls || 0) + (data.emails || 0) + (data.texts || 0) + (data.posts || 0) + (data.crm || 0) + (data.openHouse || 0) + (data.networking || 0);
+  const percent = Math.round((totalItems / 17) * 100);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-slate-900 rounded-3xl p-6 shadow-lg border border-slate-800">
-        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalScore}<span className="text-lg text-slate-500 font-bold">/19</span></p></div></div>
+        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalItems}<span className="text-lg text-slate-500 font-bold">/17</span></p></div></div>
         <div className="w-full bg-slate-800/50 rounded-full h-3 mt-4 overflow-hidden shadow-inner"><div className="bg-gradient-to-r from-amber-500 to-amber-400 h-3 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.min(percent, 100)}%` }}></div></div>
         {percent >= 100 && <p className="text-amber-400 text-sm font-bold mt-4 flex items-center gap-1.5"><CheckCircle2 size={18} /> Incredible! You crushed it today.</p>}
       </div>
@@ -592,8 +582,8 @@ function TodayView({ dateStr, log, onSave, profile }) {
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.posts || 0} onChange={(v) => onSave({ posts: v })} />
         <CounterCard icon={UserPlus} title="CRM Adds" max={1} value={data.crm || 0} onChange={(v) => onSave({ crm: v })} />
-        <CounterCard icon={Home} title="Open House (10 pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
-        <CounterCard icon={Briefcase} title="Networking Event (10 pts)" max={1} value={data.networking || 0} onChange={(v) => onSave({ networking: v })} />
+        <CounterCard icon={Home} title="Open House" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
+        <CounterCard icon={Briefcase} title="Networking Event" max={1} value={data.networking || 0} onChange={(v) => onSave({ networking: v })} />
       </div>
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
         <label className="block font-bold text-slate-800 mb-3">Today's Wins / Obstacles</label>
@@ -606,6 +596,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
 function SummaryView({ logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
   const weeklyLogs = logs.filter(l => l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
+  
   const totals = {
     calls: weeklyLogs.reduce((sum, l) => sum + (l.calls || 0), 0), 
     emails: weeklyLogs.reduce((sum, l) => sum + (l.emails || 0), 0),
@@ -613,19 +604,23 @@ function SummaryView({ logs, todayStr }) {
     posts: weeklyLogs.reduce((sum, l) => sum + (l.posts || 0), 0),
     crm: weeklyLogs.reduce((sum, l) => sum + (l.crm || 0), 0), 
     openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouse || 0), 0),
-    networking: weeklyLogs.reduce((sum, l) => sum + (l.networking || 0), 0),
-    score: weeklyLogs.reduce((sum, l) => sum + (l.score || 0), 0)
+    networking: weeklyLogs.reduce((sum, l) => sum + (l.networking || 0), 0)
   };
-  const daysLogged = weeklyLogs.filter(l => l.score > 0).length;
+
+  // Para Summary contamos ACTIVIDADES (Max 85)
+  const totalItems = totals.calls + totals.emails + totals.texts + totals.posts + totals.crm + totals.openHouse + totals.networking;
+  
+  const daysLogged = weeklyLogs.filter(l => ((l.calls || 0) + (l.emails || 0) + (l.texts || 0) + (l.posts || 0) + (l.crm || 0) + (l.openHouse || 0) + (l.networking || 0)) > 0).length;
+  
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossible = 95; 
-  const weeklyPercent = maxPossible > 0 ? Math.round((totals.score / maxPossible) * 100) : 0;
+  const maxPossible = daysPassed * 17; // 17 Actividades máximas por día
+  const weeklyPercent = maxPossible > 0 ? Math.round((totalItems / maxPossible) * 100) : 0;
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Weekly Score</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{totals.score}<span className="text-2xl text-slate-300">/95</span></div>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Activities Completed</h2>
+        <div className="text-6xl font-black text-slate-900 mb-3">{totalItems}<span className="text-2xl text-slate-300">/85</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -679,12 +674,17 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
       ) : (
         sortedLogs.map(log => {
           if (isWeekend(log.date) && !log.notes) return null;
+          
           const isCurrentWeek = log.date >= startOfWeek && log.date <= todayStr; 
-          const pct = Math.round((log.score / 19) * 100); 
+          
+          // History cuenta ITEMS, no Puntos
+          const totalItems = (log.calls || 0) + (log.emails || 0) + (log.texts || 0) + (log.posts || 0) + (log.crm || 0) + (log.openHouse || 0) + (log.networking || 0);
+          const pct = Math.round((totalItems / 17) * 100); 
           const canEdit = isCurrentWeek && !readOnly;
+
           return (
             <div key={log.date} className={`bg-white p-5 rounded-2xl border shadow-sm ${canEdit ? 'border-slate-200 hover:border-amber-400 cursor-pointer transition-all' : 'border-slate-100 opacity-80'}`} onClick={() => canEdit ? setEditingLog(log) : null}>
-              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{log.score}/19</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{totalItems}/17</span></div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div></div>
               {log.notes && <p className="text-xs text-slate-500 font-medium italic bg-slate-50 p-3 rounded-xl border border-slate-100 line-clamp-2">"{log.notes}"</p>}
               {canEdit && <p className="text-[10px] text-amber-600/70 mt-3 uppercase tracking-wider font-bold">Tap to edit</p>}
@@ -700,9 +700,8 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
 function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
   const [selectedProfile, setSelectedProfile] = useState(null);
   
-  // Estados para el Modal de Mensajes
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
-  const [messageTargetType, setMessageTargetType] = useState('team'); // 'team' o 'agent'
+  const [messageTargetType, setMessageTargetType] = useState('team'); 
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -710,6 +709,7 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
   const startOfWeek = getStartOfWeek(todayStr);
   const directory = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr);
+    // Para Coach, sí mostramos los Puntos Ponderados del Ranking
     const weeklyScore = userLogs.reduce((sum, l) => sum + (l.score || 0), 0);
     const lastActive = userLogs.length > 0 ? [...userLogs].sort((a,b) => b.date.localeCompare(a.date))[0].date : 'Never';
     return { ...profile, weeklyScore, lastActive };
@@ -727,7 +727,7 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
     setIsSending(true);
 
     const fullMessage = messageText.trim() + '\n\nSincerely, Fernando, your COACH';
-    const receiverId = messageTargetType === 'agent' ? selectedAgentId : null; // null significa para todo el equipo
+    const receiverId = messageTargetType === 'agent' ? selectedAgentId : null;
     
     const { error } = await supabase.from('messages').insert([{
       id: Math.random().toString(36).substring(2, 15),
@@ -741,7 +741,6 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
     setIsSending(false);
     if (!error) {
       setIsMessageModalOpen(false);
-      // Opcional: Trigger browser notification for the coach to confirm
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification("Message Sent!", { body: "Your agents will see this in their inbox." });
       } else {
@@ -776,26 +775,13 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 relative">
-      
-      {/* Botones de Notificación Actualizados */}
       <div className="grid grid-cols-2 gap-4">
-        <button 
-          onClick={() => handleOpenCompose('agent')}
-          className="bg-white hover:bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 transition-colors group"
-        >
-          <div className="p-3 bg-slate-100 group-hover:bg-amber-100 group-hover:text-amber-600 rounded-full text-slate-700 transition-colors">
-            <MessageSquare size={20} />
-          </div>
+        <button onClick={() => handleOpenCompose('agent')} className="bg-white hover:bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 transition-colors group">
+          <div className="p-3 bg-slate-100 group-hover:bg-amber-100 group-hover:text-amber-600 rounded-full text-slate-700 transition-colors"><MessageSquare size={20} /></div>
           <span className="text-xs font-bold text-slate-700 uppercase tracking-wider text-center">Notify Agent</span>
         </button>
-        
-        <button 
-          onClick={() => handleOpenCompose('team')}
-          className="bg-slate-900 hover:bg-slate-800 p-5 rounded-2xl shadow-md flex flex-col items-center justify-center gap-3 transition-colors"
-        >
-          <div className="p-3 bg-amber-400 rounded-full text-slate-900">
-            <BellRing size={20} />
-          </div>
+        <button onClick={() => handleOpenCompose('team')} className="bg-slate-900 hover:bg-slate-800 p-5 rounded-2xl shadow-md flex flex-col items-center justify-center gap-3 transition-colors">
+          <div className="p-3 bg-amber-400 rounded-full text-slate-900"><BellRing size={20} /></div>
           <span className="text-xs font-bold text-white uppercase tracking-wider text-center">Notify Team</span>
         </button>
       </div>
@@ -814,27 +800,17 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
         </div>
       </div>
 
-      {/* MODAL REDACTAR MENSAJE */}
       {isMessageModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-[2rem] p-6 max-w-md w-full shadow-2xl relative border border-slate-100 animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300">
-            <button onClick={() => setIsMessageModalOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-400 hover:text-slate-700 rounded-full transition-colors">
-              <X size={20} />
-            </button>
-            
-            <h2 className="text-xl font-black text-slate-900 mb-1">
-              {messageTargetType === 'team' ? 'Broadcast to Team' : 'Message Agent'}
-            </h2>
+            <button onClick={() => setIsMessageModalOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-400 hover:text-slate-700 rounded-full transition-colors"><X size={20} /></button>
+            <h2 className="text-xl font-black text-slate-900 mb-1">{messageTargetType === 'team' ? 'Broadcast to Team' : 'Message Agent'}</h2>
             <p className="text-slate-500 text-sm font-medium mb-6">Send an in-app notification instantly.</p>
 
             {messageTargetType === 'agent' && (
               <div className="mb-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Select Agent</label>
-                <select 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 font-medium focus:outline-none focus:border-amber-400"
-                  value={selectedAgentId}
-                  onChange={(e) => setSelectedAgentId(e.target.value)}
-                >
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 font-medium focus:outline-none focus:border-amber-400" value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)}>
                   {directory.map(agent => (
                     <option key={agent.id} value={agent.id}>{agent.name}</option>
                   ))}
@@ -844,24 +820,14 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
 
             <div className="mb-6">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Message</label>
-              <textarea 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-400 transition-all resize-none"
-                placeholder="Type your message here..."
-                rows={4}
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-              />
+              <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-400 transition-all resize-none" placeholder="Type your message here..." rows={4} value={messageText} onChange={(e) => setMessageText(e.target.value)} />
               <div className="mt-3 p-3 bg-slate-100 rounded-lg border border-slate-200">
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Preview Signature:</p>
                 <p className="text-sm font-medium text-slate-700 italic">...<br/><br/>Sincerely, Fernando, your COACH</p>
               </div>
             </div>
 
-            <button 
-              onClick={handleSendMessage}
-              disabled={isSending || !messageText.trim()}
-              className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
-            >
+            <button onClick={handleSendMessage} disabled={isSending || !messageText.trim()} className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
               {isSending ? 'Sending...' : <><Send size={18} /> Send Message</>}
             </button>
           </div>
