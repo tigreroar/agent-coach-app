@@ -23,8 +23,10 @@ import {
 
 // --- SUPABASE INITIALIZATION ---
 // Usamos las variables reales del archivo .env
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let supabaseUrl = '';
+let supabaseAnonKey = '';
+try { supabaseUrl = import.meta.env.VITE_SUPABASE_URL; } catch (e) {}
+try { supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY; } catch (e) {}
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Missing Supabase environment variables. Check your .env file.");
@@ -357,6 +359,7 @@ export default function App() {
 function OnboardingView({ allProfiles, onComplete }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(''); // Estado para el teléfono
   const [photoURL, setPhotoURL] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -385,15 +388,24 @@ function OnboardingView({ allProfiles, onComplete }) {
     e.preventDefault();
     if (!name.trim()) return;
     setLoading(true);
+    
     const existingProfile = email ? allProfiles.find(p => p.email && p.email.toLowerCase() === email.toLowerCase().trim()) : null;
     let targetId = existingProfile ? existingProfile.id : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     if (!existingProfile) {
       const role = name.toLowerCase().includes('admin') ? 'admin' : 'agent';
       const finalPhotoURL = photoURL.trim() || generateAvatar(name);
+      
       const { error } = await supabase.from('users').insert([{
-        id: targetId, name: name, email: email.trim(), role: role, photoURL: finalPhotoURL,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, createdAt: new Date().toISOString(), fcmToken: null
+        id: targetId, 
+        name: name, 
+        email: email.trim(), 
+        phone: phone.trim(), 
+        role: role, 
+        photoURL: finalPhotoURL,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
+        createdAt: new Date().toISOString(), 
+        fcmToken: null
       }]);
       if (error) console.error("Error creating user:", error);
     }
@@ -421,6 +433,10 @@ function OnboardingView({ allProfiles, onComplete }) {
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Email Address</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@realestate.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium" required />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Phone Number</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium" required />
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Profile Picture (Optional)</label>
@@ -643,7 +659,18 @@ function AdminView({ logs, profiles, todayStr }) {
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
         <button onClick={() => setSelectedProfile(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-colors"><ArrowLeft size={20} /> Back to Directory</button>
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex items-center gap-4"><img src={selectedProfile.photoURL || generateAvatar(selectedProfile.name)} alt={selectedProfile.name} className="w-14 h-14 rounded-full border-2 border-slate-100 object-cover bg-slate-100" /><div className="flex-1 min-w-0"><h2 className="text-xl font-black text-slate-900 truncate">{selectedProfile.name}</h2><p className="text-sm text-slate-500 font-medium truncate">{selectedProfile.email}</p></div></div>
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex items-center gap-4">
+          <img src={selectedProfile.photoURL || generateAvatar(selectedProfile.name)} alt={selectedProfile.name} className="w-14 h-14 rounded-full border-2 border-slate-100 object-cover bg-slate-100" />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-black text-slate-900 truncate">{selectedProfile.name}</h2>
+            <p className="text-sm text-slate-500 font-medium truncate">{selectedProfile.email}</p>
+            {selectedProfile.phone && (
+              <p className="text-sm text-amber-600 font-semibold truncate mt-0.5 flex items-center gap-1">
+                <Phone size={14} /> {selectedProfile.phone}
+              </p>
+            )}
+          </div>
+        </div>
         <div><h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 px-2">Activity Summary</h3><SummaryView logs={userLogs} todayStr={todayStr} /></div>
         <div><h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 px-2 mt-8">Daily History</h3><HistoryView logs={userLogs} onSaveLog={() => {}} todayStr={todayStr} readOnly={true} /></div>
       </div>
