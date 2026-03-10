@@ -22,7 +22,10 @@ import {
   Home,
   Briefcase,
   Send,
-  MessageCircle
+  MessageCircle,
+  FileText,
+  DollarSign,
+  Gift
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -426,26 +429,49 @@ export default function App() {
     if (!activeUserId) return;
     const logId = `${activeUserId}_${date}`;
     
-    const existing = myLogs.find(l => l.date === date) || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0 };
+    const existing = myLogs.find(l => l.date === date) || { 
+      conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
+      openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
+      transactionClose: 0, cardinalTitle: 0, referralName: '' 
+    };
     const merged = { ...existing, ...updates };
     
-    // Este SCORE es el puntaje del Ranking ponderado (Llamadas=1, OpenHouse=10, etc)
-    const score = (merged.calls || 0) + (merged.emails || 0) + (merged.texts || 0) + (merged.posts || 0) + (merged.crm || 0) + ((merged.openHouse || 0) * 10) + ((merged.networking || 0) * 10);
+    // Cálculo de Score (Max 165 al día)
+    // Básicos (1 pt)
+    const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0);
+    // Especiales (10 pts)
+    const specialPts = ((merged.openHouse || 0) * 10) + ((merged.networkingEvent || 0) * 10) + ((merged.listingAppointment || 0) * 10) + ((merged.buyerConsultation || 0) * 10) + ((merged.transactionClose || 0) * 10) + ((merged.cardinalTitle || 0) * 10);
+    // Referral (10 pts si no está vacío)
+    const referralPts = (merged.referralName && merged.referralName.trim() !== '') ? 10 : 0;
+    
+    const score = basePts + specialPts + referralPts;
 
     const { error } = await supabase.from('daily_logs').upsert({
-      id: logId, userId: activeUserId, date: date,
-      calls: merged.calls || 0, emails: merged.emails || 0, texts: merged.texts || 0, posts: merged.posts || 0, crm: merged.crm || 0,
-      openHouse: merged.openHouse || 0, networking: merged.networking || 0,
-      notes: merged.notes || '', score: score, updatedAt: new Date().toISOString()
+      id: logId, 
+      userId: activeUserId, 
+      date: date,
+      conversations: merged.conversations || 0, 
+      followUpEmail: merged.followUpEmail || 0, 
+      texts: merged.texts || 0, 
+      socialPosts: merged.socialPosts || 0, 
+      authorityAction: merged.authorityAction || 0,
+      openHouse: merged.openHouse || 0, 
+      networkingEvent: merged.networkingEvent || 0,
+      listingAppointment: merged.listingAppointment || 0,
+      buyerConsultation: merged.buyerConsultation || 0,
+      transactionClose: merged.transactionClose || 0,
+      cardinalTitle: merged.cardinalTitle || 0,
+      referralName: merged.referralName || '',
+      notes: merged.notes || '', 
+      score: score, 
+      updatedAt: new Date().toISOString()
     });
 
     if (error) console.error("Error saving log:", error);
   };
 
   const handleUpdateProfile = async (updatedData) => {
-    // Actualización optimista local
     setProfile(prev => ({ ...prev, ...updatedData }));
-    
     const { error } = await supabase.from('users').update(updatedData).eq('id', activeUserId);
     if (error) {
       console.error("Error updating profile:", error);
@@ -547,7 +573,6 @@ function OnboardingView({ onComplete }) {
     
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Buscamos directamente en Supabase si el correo ya existe
     const { data: existingUsers, error: searchError } = await supabase
       .from('users')
       .select('*')
@@ -556,7 +581,6 @@ function OnboardingView({ onComplete }) {
     const existingProfile = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
     let targetId = existingProfile ? existingProfile.id : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-    // 2. Si no existe, creamos el usuario nuevo en la base de datos
     if (!existingProfile) {
       const role = name.toLowerCase().includes('admin') ? 'admin' : 'agent';
       const finalPhotoURL = photoURL.trim() || generateAvatar(name);
@@ -577,7 +601,7 @@ function OnboardingView({ onComplete }) {
     }
 
     setLoading(false);
-    onComplete(targetId); // 3. Iniciamos sesión con el ID correcto (el viejo o el nuevo)
+    onComplete(targetId); 
   };
 
   return (
@@ -637,12 +661,10 @@ function OnboardingView({ onComplete }) {
 
 function RankingView({ profiles, logs, todayStr, isAdmin }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 175; // 175 PUNTOS (Ponderados con OH y Networking a 10pts)
+  const maxWeeklyPoints = 825; // ACTUALIZADO: 825 puntos max a la semana
   
   const leaderboard = profiles.map(profile => {
-    // Al filtrar por startOfWeek, cada Lunes esto empieza en 0 automáticamente
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
-    // La DB guarda el puntaje (score) ponderado sumado previamente
     const score = userLogs.reduce((sum, l) => sum + (l.score || 0), 0);
     const percent = Math.round((score / maxWeeklyPoints) * 100);
     return { ...profile, score, percent };
@@ -710,29 +732,79 @@ function TodayView({ dateStr, log, onSave, profile }) {
     );
   }
 
-  const data = log || { calls: 0, emails: 0, texts: 0, posts: 0, crm: 0, openHouse: 0, networking: 0, notes: '' };
+  const data = log || { 
+    conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
+    openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
+    transactionClose: 0, cardinalTitle: 0, referralName: '', notes: '' 
+  };
   
-  // Para la vista Today solo contamos la cantidad de ITEMS o ACTIVIDADES completadas (Max 17)
-  const totalItems = (data.calls || 0) + (data.emails || 0) + (data.texts || 0) + (data.posts || 0) + (data.crm || 0) + (data.openHouse || 0) + (data.networking || 0);
-  const percent = Math.round((totalItems / 17) * 100);
+  // Total Items Completados (Max 30 al día)
+  const isReferralFilled = data.referralName && data.referralName.trim() !== '';
+  const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
+                     (data.socialPosts || 0) + (data.authorityAction || 0) + (data.openHouse || 0) + 
+                     (data.networkingEvent || 0) + (data.listingAppointment || 0) + (data.buyerConsultation || 0) + 
+                     (data.transactionClose || 0) + (data.cardinalTitle || 0) + (isReferralFilled ? 1 : 0);
+                     
+  const percent = Math.round((totalItems / 30) * 100);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-4">
       <div className="bg-slate-900 rounded-3xl p-6 shadow-lg border border-slate-800">
-        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalItems}<span className="text-lg text-slate-500 font-bold">/17</span></p></div></div>
+        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalItems}<span className="text-lg text-slate-500 font-bold">/30</span></p></div></div>
         <div className="w-full bg-slate-800/50 rounded-full h-3 mt-4 overflow-hidden shadow-inner"><div className="bg-gradient-to-r from-amber-500 to-amber-400 h-3 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.min(percent, 100)}%` }}></div></div>
         {percent >= 100 && <p className="text-amber-400 text-sm font-bold mt-4 flex items-center gap-1.5"><CheckCircle2 size={18} /> Incredible! You crushed it today.</p>}
       </div>
+      
       <div className="space-y-4">
-        <CounterCard icon={Phone} title="Calls" max={5} value={data.calls || 0} onChange={(v) => onSave({ calls: v })} />
-        <CounterCard icon={Mail} title="Emails" max={4} value={data.emails || 0} onChange={(v) => onSave({ emails: v })} />
+        <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
+        <CounterCard icon={Mail} title="Follow-Up Email" max={4} value={data.followUpEmail || 0} onChange={(v) => onSave({ followUpEmail: v })} />
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
-        <CounterCard icon={Share2} title="Social Posts" max={2} value={data.posts || 0} onChange={(v) => onSave({ posts: v })} />
-        <CounterCard icon={UserPlus} title="CRM Adds" max={1} value={data.crm || 0} onChange={(v) => onSave({ crm: v })} />
-        <CounterCard icon={Home} title="Open House" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
-        <CounterCard icon={Briefcase} title="Networking Event" max={1} value={data.networking || 0} onChange={(v) => onSave({ networking: v })} />
+        <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
+        <CounterCard icon={UserPlus} title="Authority Action" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
+        
+        <div className="py-4 flex items-center gap-4">
+          <div className="h-px bg-slate-200 flex-1"></div>
+          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">High Value (10 Pts/Ea)</span>
+          <div className="h-px bg-slate-200 flex-1"></div>
+        </div>
+        
+        <CounterCard icon={Home} title="Open House (10 Pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
+        <CounterCard icon={Briefcase} title="Networking Event (10 Pts)" max={1} value={data.networkingEvent || 0} onChange={(v) => onSave({ networkingEvent: v })} />
+        <CounterCard icon={FileText} title="Listing Appointment (10 Pts)" max={3} value={data.listingAppointment || 0} onChange={(v) => onSave({ listingAppointment: v })} />
+        <CounterCard icon={Users} title="Buyer Consultation (10 Pts)" max={3} value={data.buyerConsultation || 0} onChange={(v) => onSave({ buyerConsultation: v })} />
+        <CounterCard icon={DollarSign} title="Transaction Close (10 Pts)" max={3} value={data.transactionClose || 0} onChange={(v) => onSave({ transactionClose: v })} />
+
+        <div className="py-4 flex items-center gap-4">
+          <div className="h-px bg-slate-200 flex-1"></div>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Bonus Points</span>
+          <div className="h-px bg-slate-200 flex-1"></div>
+        </div>
+
+        <CounterCard icon={Award} title="Cardinal Title Usage (10 Pts)" max={3} value={data.cardinalTitle || 0} onChange={(v) => onSave({ cardinalTitle: v })} />
+        
+        {/* Referral Text Box */}
+        <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+                <Gift size={20} strokeWidth={2.5} />
+              </div>
+              <span className="font-semibold text-slate-800 text-base">Referral (10 Pts)</span>
+            </div>
+            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+10 Pts</span>}
+          </div>
+          <input
+            type="text"
+            placeholder="Enter referral name..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+            value={data.referralName || ''}
+            onChange={(e) => onSave({ referralName: e.target.value })}
+          />
+        </div>
+
       </div>
-      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+      
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm mt-6">
         <label className="block font-bold text-slate-800 mb-3">Today's Wins / Obstacles</label>
         <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" placeholder="Had an excellent conversation with..." rows={3} value={data.notes || ''} onChange={(e) => onSave({ notes: e.target.value })} />
       </div>
@@ -745,29 +817,40 @@ function SummaryView({ logs, todayStr }) {
   const weeklyLogs = logs.filter(l => l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
   
   const totals = {
-    calls: weeklyLogs.reduce((sum, l) => sum + (l.calls || 0), 0), 
-    emails: weeklyLogs.reduce((sum, l) => sum + (l.emails || 0), 0),
+    conversations: weeklyLogs.reduce((sum, l) => sum + (l.conversations || 0), 0), 
+    followUpEmail: weeklyLogs.reduce((sum, l) => sum + (l.followUpEmail || 0), 0),
     texts: weeklyLogs.reduce((sum, l) => sum + (l.texts || 0), 0), 
-    posts: weeklyLogs.reduce((sum, l) => sum + (l.posts || 0), 0),
-    crm: weeklyLogs.reduce((sum, l) => sum + (l.crm || 0), 0), 
+    socialPosts: weeklyLogs.reduce((sum, l) => sum + (l.socialPosts || 0), 0),
+    authorityAction: weeklyLogs.reduce((sum, l) => sum + (l.authorityAction || 0), 0), 
     openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouse || 0), 0),
-    networking: weeklyLogs.reduce((sum, l) => sum + (l.networking || 0), 0)
+    networkingEvent: weeklyLogs.reduce((sum, l) => sum + (l.networkingEvent || 0), 0),
+    listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointment || 0), 0),
+    buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultation || 0), 0),
+    transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionClose || 0), 0),
+    cardinalTitle: weeklyLogs.reduce((sum, l) => sum + (l.cardinalTitle || 0), 0),
+    referrals: weeklyLogs.reduce((sum, l) => sum + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0), 0)
   };
 
-  // Para Summary contamos ACTIVIDADES (Max 85)
-  const totalItems = totals.calls + totals.emails + totals.texts + totals.posts + totals.crm + totals.openHouse + totals.networking;
+  // Summary ahora cuenta sobre 150 Actividades Totales de la Semana
+  const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
   
-  const daysLogged = weeklyLogs.filter(l => ((l.calls || 0) + (l.emails || 0) + (l.texts || 0) + (l.posts || 0) + (l.crm || 0) + (l.openHouse || 0) + (l.networking || 0)) > 0).length;
+  // Cuenta días que tuvieron AL MENOS 1 actividad de cualquier tipo
+  const daysLogged = weeklyLogs.filter(l => {
+    return ((l.conversations || 0) + (l.followUpEmail || 0) + (l.texts || 0) + (l.socialPosts || 0) + 
+            (l.authorityAction || 0) + (l.openHouse || 0) + (l.networkingEvent || 0) + 
+            (l.listingAppointment || 0) + (l.buyerConsultation || 0) + (l.transactionClose || 0) + 
+            (l.cardinalTitle || 0) + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0)) > 0;
+  }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossible = daysPassed * 17; // 17 Actividades máximas por día
+  const maxPossible = daysPassed * 30; // 30 Actividades máximas por día
   const weeklyPercent = maxPossible > 0 ? Math.round((totalItems / maxPossible) * 100) : 0;
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Activities Completed</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{totalItems}<span className="text-2xl text-slate-300">/85</span></div>
+        <div className="text-6xl font-black text-slate-900 mb-3">{totalItems}<span className="text-2xl text-slate-300">/150</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -778,13 +861,18 @@ function SummaryView({ logs, todayStr }) {
         <h3 className="font-bold text-slate-900 mb-5">Activity Breakdown</h3>
         <div className="space-y-4">
           {[
-            { label: 'Calls', icon: Phone, total: totals.calls, max: 25 }, 
-            { label: 'Emails', icon: Mail, total: totals.emails, max: 20 }, 
+            { label: 'Conversations', icon: Phone, total: totals.conversations, max: 25 }, 
+            { label: 'Follow-Up Email', icon: Mail, total: totals.followUpEmail, max: 20 }, 
             { label: 'Texts', icon: MessageSquare, total: totals.texts, max: 15 }, 
-            { label: 'Social Posts', icon: Share2, total: totals.posts, max: 10 }, 
-            { label: 'CRM Adds', icon: UserPlus, total: totals.crm, max: 5 },
+            { label: 'Social Posts', icon: Share2, total: totals.socialPosts, max: 10 }, 
+            { label: 'Authority Action', icon: UserPlus, total: totals.authorityAction, max: 5 },
             { label: 'Open House', icon: Home, total: totals.openHouse, max: 5 },
-            { label: 'Networking', icon: Briefcase, total: totals.networking, max: 5 }
+            { label: 'Networking', icon: Briefcase, total: totals.networkingEvent, max: 5 },
+            { label: 'Listing Appt', icon: FileText, total: totals.listingAppointment, max: 15 },
+            { label: 'Buyer Consult', icon: Users, total: totals.buyerConsultation, max: 15 },
+            { label: 'Transaction Close', icon: DollarSign, total: totals.transactionClose, max: 15 },
+            { label: 'Cardinal Title', icon: Award, total: totals.cardinalTitle, max: 15 },
+            { label: 'Referrals', icon: Gift, total: totals.referrals, max: 5 }
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -824,14 +912,17 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
           
           const isCurrentWeek = log.date >= startOfWeek && log.date <= todayStr; 
           
-          // History cuenta ITEMS, no Puntos
-          const totalItems = (log.calls || 0) + (log.emails || 0) + (log.texts || 0) + (log.posts || 0) + (log.crm || 0) + (log.openHouse || 0) + (log.networking || 0);
-          const pct = Math.round((totalItems / 17) * 100); 
+          const totalItems = (log.conversations || 0) + (log.followUpEmail || 0) + (log.texts || 0) + 
+                             (log.socialPosts || 0) + (log.authorityAction || 0) + (log.openHouse || 0) + 
+                             (log.networkingEvent || 0) + (log.listingAppointment || 0) + (log.buyerConsultation || 0) + 
+                             (log.transactionClose || 0) + (log.cardinalTitle || 0) + ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
+                             
+          const pct = Math.round((totalItems / 30) * 100); 
           const canEdit = isCurrentWeek && !readOnly;
 
           return (
             <div key={log.date} className={`bg-white p-5 rounded-2xl border shadow-sm ${canEdit ? 'border-slate-200 hover:border-amber-400 cursor-pointer transition-all' : 'border-slate-100 opacity-80'}`} onClick={() => canEdit ? setEditingLog(log) : null}>
-              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{totalItems}/17</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{totalItems}/30</span></div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div></div>
               {log.notes && <p className="text-xs text-slate-500 font-medium italic bg-slate-50 p-3 rounded-xl border border-slate-100 line-clamp-2">"{log.notes}"</p>}
               {canEdit && <p className="text-[10px] text-amber-600/70 mt-3 uppercase tracking-wider font-bold">Tap to edit</p>}
@@ -856,7 +947,6 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
   const startOfWeek = getStartOfWeek(todayStr);
   const directory = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr);
-    // Para Coach, sí mostramos los Puntos Ponderados del Ranking
     const weeklyScore = userLogs.reduce((sum, l) => sum + (l.score || 0), 0);
     const lastActive = userLogs.length > 0 ? [...userLogs].sort((a,b) => b.date.localeCompare(a.date))[0].date : 'Never';
     return { ...profile, weeklyScore, lastActive };
