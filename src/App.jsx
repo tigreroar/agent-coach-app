@@ -98,7 +98,7 @@ const DailyGreetingModal = ({ name, onClose }) => {
   );
 };
 
-const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox }) => (
+const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProfile }) => (
   <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-10">
     <div className="max-w-md mx-auto flex justify-between items-center">
       <div className="flex items-center gap-2">
@@ -122,7 +122,9 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox }) => (
           </button>
         )}
         {profile && profile.photoURL && (
-          <img src={profile.photoURL} alt="User" className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-800 object-cover" />
+          <button onClick={onOpenProfile} className="transition-transform hover:scale-105 active:scale-95 outline-none rounded-full" title="Edit Profile">
+            <img src={profile.photoURL} alt="User" className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-800 object-cover shadow-sm" />
+          </button>
         )}
         {onLogout && (
           <button onClick={onLogout} className="p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Log Out">
@@ -189,6 +191,97 @@ const CounterCard = ({ icon: Icon, title, max, value, onChange }) => {
   );
 };
 
+// --- PROFILE EDIT MODAL ---
+function ProfileEditModal({ profile, onClose, onSave }) {
+  const [name, setName] = useState(profile?.name || '');
+  const [email, setEmail] = useState(profile?.email || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [photoURL, setPhotoURL] = useState(profile?.photoURL || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width, height = img.height;
+        if (width > height) { if (width > 400) { height *= 400 / width; width = 400; } } 
+        else { if (height > 400) { width *= 400 / height; height = 400; } }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        setPhotoURL(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setLoading(true);
+    
+    await onSave({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      photoURL: photoURL.trim() || generateAvatar(name)
+    });
+    
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col bg-slate-50 animate-in slide-in-from-bottom-full duration-300">
+      <header className="bg-slate-900 text-white p-4 shadow-md shrink-0 flex items-center gap-4">
+        <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+          <ArrowLeft size={24} />
+        </button>
+        <h2 className="text-lg font-bold">Edit Profile</h2>
+      </header>
+      
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
+        <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-5">
+          <div className="text-center mb-6">
+            <div className="relative inline-block">
+              <img src={photoURL || generateAvatar(name)} alt="Profile Preview" className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-100 shadow-md object-cover bg-slate-100" />
+              <label htmlFor="edit-photo-upload" className="absolute bottom-2 right-0 p-2 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-full cursor-pointer shadow-lg transition-colors border-2 border-white">
+                <Camera size={16} strokeWidth={2.5} />
+              </label>
+            </div>
+            <input type="file" accept="image/*" onChange={handleImageUpload} id="edit-photo-upload" className="hidden" />
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-2">Tap icon to change</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Your Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all font-medium" required />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Email Address</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all font-medium" required />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Phone Number</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all font-medium" required />
+          </div>
+
+          <div className="pt-4">
+            <button type="submit" disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70">
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // --- INBOX MODAL ---
 function InboxModal({ messages, onClose, onMarkAsRead }) {
   useEffect(() => {
@@ -249,6 +342,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('ranking'); 
   const [showGreeting, setShowGreeting] = useState(false);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const todayStr = getLocalYYYYMMDD();
 
@@ -348,6 +442,17 @@ export default function App() {
     if (error) console.error("Error saving log:", error);
   };
 
+  const handleUpdateProfile = async (updatedData) => {
+    // Actualización optimista local
+    setProfile(prev => ({ ...prev, ...updatedData }));
+    
+    const { error } = await supabase.from('users').update(updatedData).eq('id', activeUserId);
+    if (error) {
+      console.error("Error updating profile:", error);
+      alert("There was an error updating your profile.");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('agentCoach_activeUserId');
     setActiveUserId(null);
@@ -376,12 +481,17 @@ export default function App() {
         <InboxModal messages={myMessages} onClose={() => setIsInboxOpen(false)} onMarkAsRead={handleMarkMessagesAsRead} />
       )}
 
+      {isProfileOpen && (
+        <ProfileEditModal profile={profile} onClose={() => setIsProfileOpen(false)} onSave={handleUpdateProfile} />
+      )}
+
       <Header 
         title={activeTab === 'today' ? "Today's Activities" : activeTab === 'history' ? 'Your History' : activeTab === 'summary' ? 'Weekly Summary' : activeTab === 'ranking' ? 'Weekly Ranking' : 'Coach Dashboard'} 
         onLogout={handleLogout}
         profile={profile}
         unreadCount={unreadCount}
         onOpenInbox={() => setIsInboxOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
       />
       
       <main className="flex-1 overflow-y-auto pb-8 pt-4">
@@ -479,7 +589,6 @@ function OnboardingView({ allProfiles, onComplete }) {
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium" required />
           </div>
           
-          {/* NUEVO CÓDIGO AÑADIDO: Sección para subir foto de perfil */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
             <input 
@@ -497,7 +606,6 @@ function OnboardingView({ allProfiles, onComplete }) {
               <span className="text-sm">{photoURL ? 'Photo uploaded - Click to change' : 'Upload a Profile Photo'}</span>
             </label>
           </div>
-          {/* FIN DEL NUEVO CÓDIGO */}
 
           <div className="pt-2">
             <button type="submit" disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70">
