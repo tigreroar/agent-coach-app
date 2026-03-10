@@ -227,7 +227,7 @@ function ProfileEditModal({ profile, onClose, onSave }) {
     
     await onSave({
       name: name.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone.trim(),
       photoURL: photoURL.trim() || generateAvatar(name)
     });
@@ -469,7 +469,7 @@ export default function App() {
   }
 
   if (profile === false) {
-    return <OnboardingView allProfiles={allProfiles} onComplete={(tId) => { localStorage.setItem('agentCoach_activeUserId', tId); setActiveUserId(tId); }} />;
+    return <OnboardingView onComplete={(tId) => { localStorage.setItem('agentCoach_activeUserId', tId); setActiveUserId(tId); }} />;
   }
 
   return (
@@ -512,14 +512,13 @@ export default function App() {
 
 // --- SUB-VIEWS ---
 
-function OnboardingView({ allProfiles, onComplete }) {
+function OnboardingView({ onComplete }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // La función handleImageUpload ya existía, ahora el UI la usará
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -543,24 +542,42 @@ function OnboardingView({ allProfiles, onComplete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !email.trim()) return;
     setLoading(true);
     
-    const existingProfile = email ? allProfiles.find(p => p.email && p.email.toLowerCase() === email.toLowerCase().trim()) : null;
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Buscamos directamente en Supabase si el correo ya existe
+    const { data: existingUsers, error: searchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', cleanEmail);
+
+    const existingProfile = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
     let targetId = existingProfile ? existingProfile.id : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+    // 2. Si no existe, creamos el usuario nuevo en la base de datos
     if (!existingProfile) {
       const role = name.toLowerCase().includes('admin') ? 'admin' : 'agent';
       const finalPhotoURL = photoURL.trim() || generateAvatar(name);
       
       const { error } = await supabase.from('users').insert([{
-        id: targetId, name: name, email: email.trim(), phone: phone.trim(), role: role, photoURL: finalPhotoURL,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, createdAt: new Date().toISOString(), fcmToken: null
+        id: targetId, 
+        name: name.trim(), 
+        email: cleanEmail, 
+        phone: phone.trim(), 
+        role: role, 
+        photoURL: finalPhotoURL,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
+        createdAt: new Date().toISOString(), 
+        fcmToken: null
       }]);
+      
       if (error) console.error("Error creating user:", error);
     }
+
     setLoading(false);
-    onComplete(targetId);
+    onComplete(targetId); // 3. Iniciamos sesión con el ID correcto (el viejo o el nuevo)
   };
 
   return (
