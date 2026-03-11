@@ -795,7 +795,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
         
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
-          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">High Value (10 Pts/Ea)</span>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">High Value (10 Pts/Ea)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
