@@ -949,7 +949,8 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
         sortedLogs.map(log => {
           if (isWeekend(log.date) && !log.notes) return null;
           
-          const isCurrentWeek = log.date >= startOfWeek && log.date <= todayStr; 
+          // NUEVA REGLA: Solo es editable si la fecha del registro es exactamente HOY
+          const isToday = log.date === todayStr; 
           
           const totalItems = (log.conversations || 0) + (log.followUpEmail || 0) + (log.texts || 0) + 
                              (log.socialPosts || 0) + (log.authorityAction || 0) + (log.openHouse || 0) + 
@@ -957,7 +958,7 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
                              (log.transactionClose || 0) + (log.cardinalTitle || 0) + ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
                              
           const pct = Math.round((totalItems / 30) * 100); 
-          const canEdit = isCurrentWeek && !readOnly;
+          const canEdit = isToday && !readOnly;
 
           return (
             <div key={log.date} className={`bg-white p-5 rounded-2xl border shadow-sm ${canEdit ? 'border-slate-200 hover:border-amber-400 cursor-pointer transition-all' : 'border-slate-100 opacity-80'}`} onClick={() => canEdit ? setEditingLog(log) : null}>
