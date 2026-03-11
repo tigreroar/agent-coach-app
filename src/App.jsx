@@ -146,7 +146,7 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
       <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 p-2 rounded-xl w-fit">
         <span>Sponsored by:</span>
         <img 
-          src="/maxus mas pequeño.png" 
+          src="/maxus-logo.png" 
           alt="Sponsor Logo" 
           className="h-5 object-contain" 
           onError={(e) => { e.target.style.display = 'none'; e.target.previousSibling.innerText = 'Sponsored by: Maxus Realty Group'; }} 
