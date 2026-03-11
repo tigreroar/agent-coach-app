@@ -25,7 +25,8 @@ import {
   MessageCircle,
   FileText,
   DollarSign,
-  Gift
+  Gift,
+  BookOpen
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -103,37 +104,53 @@ const DailyGreetingModal = ({ name, onClose }) => {
 
 const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProfile }) => (
   <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-10">
-    <div className="max-w-md mx-auto flex justify-between items-center">
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 bg-slate-800 rounded-lg">
-          <Trophy size={20} className="text-amber-400" />
+    <div className="max-w-md mx-auto flex flex-col gap-3">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-slate-800 rounded-lg">
+            <Trophy size={20} className="text-amber-400" />
+          </div>
+          <h1 className="text-xl font-extrabold tracking-tight flex items-baseline gap-1.5 flex-wrap">
+            <span>AgentCoach<span className="text-amber-400">AI</span></span>
+            <span className="text-xs font-bold text-slate-300 italic whitespace-nowrap">"The Perfect Week"</span>
+          </h1>
         </div>
-        <h1 className="text-xl font-extrabold tracking-tight">AgentCoach<span className="text-amber-400">AI</span></h1>
+        <div className="flex items-center gap-3 shrink-0">
+          {profile && (
+            <button 
+              onClick={onOpenInbox}
+              className="relative p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <BellRing size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-slate-900">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+          {profile && profile.photoURL && (
+            <button onClick={onOpenProfile} className="transition-transform hover:scale-105 active:scale-95 outline-none rounded-full" title="Edit Profile">
+              <img src={profile.photoURL} alt="User" className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-800 object-cover shadow-sm" />
+            </button>
+          )}
+          {onLogout && (
+            <button onClick={onLogout} className="p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Log Out">
+              <LogOut size={18} />
+            </button>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        {profile && (
-          <button 
-            onClick={onOpenInbox}
-            className="relative p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
-          >
-            <BellRing size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-slate-900">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-        )}
-        {profile && profile.photoURL && (
-          <button onClick={onOpenProfile} className="transition-transform hover:scale-105 active:scale-95 outline-none rounded-full" title="Edit Profile">
-            <img src={profile.photoURL} alt="User" className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-800 object-cover shadow-sm" />
-          </button>
-        )}
-        {onLogout && (
-          <button onClick={onLogout} className="p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors" title="Log Out">
-            <LogOut size={18} />
-          </button>
-        )}
+      
+      {/* Sponsor Logo Section */}
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 p-2 rounded-xl w-fit">
+        <span>Sponsored by:</span>
+        <img 
+          src="/maxus mas pequeño.png" 
+          alt="Sponsor Logo" 
+          className="h-5 object-contain" 
+          onError={(e) => { e.target.style.display = 'none'; e.target.previousSibling.innerText = 'Sponsored by: Maxus Realty Group'; }} 
+        />
       </div>
     </div>
   </header>
@@ -431,18 +448,18 @@ export default function App() {
     
     const existing = myLogs.find(l => l.date === date) || { 
       conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
-      openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
-      transactionClose: 0, cardinalTitle: 0, referralName: '' 
+      contactsAdded: 0, openHouse: 0, networkingEvent: 0, listingAppointment: 0, 
+      buyerConsultation: 0, transactionClose: 0, referralName: '' 
     };
     const merged = { ...existing, ...updates };
     
-    // Cálculo de Score (Max 165 al día)
-    // Básicos (1 pt)
-    const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0);
-    // Especiales (10 pts)
-    const specialPts = ((merged.openHouse || 0) * 10) + ((merged.networkingEvent || 0) * 10) + ((merged.listingAppointment || 0) * 10) + ((merged.buyerConsultation || 0) * 10) + ((merged.transactionClose || 0) * 10) + ((merged.cardinalTitle || 0) * 10);
-    // Referral (10 pts si no está vacío)
-    const referralPts = (merged.referralName && merged.referralName.trim() !== '') ? 10 : 0;
+    // Cálculo de Score 
+    // Base (1 pt):
+    const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
+    // Special (10 pts):
+    const specialPts = ((merged.openHouse || 0) * 10) + ((merged.networkingEvent || 0) * 10) + ((merged.listingAppointment || 0) * 10) + ((merged.buyerConsultation || 0) * 10) + ((merged.transactionClose || 0) * 10);
+    // Referral (20 pts):
+    const referralPts = (merged.referralName && merged.referralName.trim() !== '') ? 20 : 0;
     
     const score = basePts + specialPts + referralPts;
 
@@ -455,19 +472,18 @@ export default function App() {
       texts: merged.texts || 0, 
       socialPosts: merged.socialPosts || 0, 
       authorityAction: merged.authorityAction || 0,
+      contactsAdded: merged.contactsAdded || 0,
       openHouse: merged.openHouse || 0, 
       networkingEvent: merged.networkingEvent || 0,
       listingAppointment: merged.listingAppointment || 0,
       buyerConsultation: merged.buyerConsultation || 0,
       transactionClose: merged.transactionClose || 0,
-      cardinalTitle: merged.cardinalTitle || 0,
       referralName: merged.referralName || '',
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
     };
 
-    // ACTUALIZACIÓN OPTIMISTA - Cambia la UI instantáneamente sin esperar a Supabase
     setLogs(prev => {
       const idx = prev.findIndex(l => l.id === logId);
       if (idx >= 0) {
@@ -675,7 +691,7 @@ function OnboardingView({ onComplete }) {
 
 function RankingView({ profiles, logs, todayStr, isAdmin }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 825; // ACTUALIZADO: 825 puntos max a la semana
+  const maxWeeklyPoints = 835; // ACTUALIZADO: 835 puntos max a la semana
   
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
@@ -734,15 +750,13 @@ function RankingView({ profiles, logs, todayStr, isAdmin }) {
 function TodayView({ dateStr, log, onSave, profile }) {
   const data = log || { 
     conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
-    openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
-    transactionClose: 0, cardinalTitle: 0, referralName: '', notes: '' 
+    contactsAdded: 0, openHouse: 0, networkingEvent: 0, listingAppointment: 0, 
+    buyerConsultation: 0, transactionClose: 0, referralName: '', notes: '' 
   };
 
-  // Estados locales para las cajas de texto (para escribir sin lag)
   const [localReferral, setLocalReferral] = useState(data.referralName || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
 
-  // Sincronizar el estado local cuando cambia el día
   useEffect(() => {
     setLocalReferral(data.referralName || '');
     setLocalNotes(data.notes || '');
@@ -769,12 +783,11 @@ function TodayView({ dateStr, log, onSave, profile }) {
     );
   }
   
-  // Total Items Completados (Max 30 al día)
   const isReferralFilled = localReferral.trim() !== '';
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
-                     (data.socialPosts || 0) + (data.authorityAction || 0) + (data.openHouse || 0) + 
+                     (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + (data.openHouse || 0) + 
                      (data.networkingEvent || 0) + (data.listingAppointment || 0) + (data.buyerConsultation || 0) + 
-                     (data.transactionClose || 0) + (data.cardinalTitle || 0) + (isReferralFilled ? 1 : 0);
+                     (data.transactionClose || 0) + (isReferralFilled ? 1 : 0);
                      
   const percent = Math.round((totalItems / 30) * 100);
 
@@ -787,11 +800,18 @@ function TodayView({ dateStr, log, onSave, profile }) {
       </div>
       
       <div className="space-y-4">
+        <div className="py-2 flex items-center gap-4">
+          <div className="h-px bg-slate-200 flex-1"></div>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (1 Point Each)</span>
+          <div className="h-px bg-slate-200 flex-1"></div>
+        </div>
+
         <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
         <CounterCard icon={Mail} title="Follow-Up Email" max={4} value={data.followUpEmail || 0} onChange={(v) => onSave({ followUpEmail: v })} />
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
         <CounterCard icon={UserPlus} title="Authority Action" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
+        <CounterCard icon={BookOpen} title="Contacts Added to CRM" max={3} value={data.contactsAdded || 0} onChange={(v) => onSave({ contactsAdded: v })} />
         
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
@@ -801,28 +821,26 @@ function TodayView({ dateStr, log, onSave, profile }) {
         
         <CounterCard icon={Home} title="Open House (10 Pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
         <CounterCard icon={Briefcase} title="Networking Event (10 Pts)" max={1} value={data.networkingEvent || 0} onChange={(v) => onSave({ networkingEvent: v })} />
-        <CounterCard icon={FileText} title="Listing Appointment (10 Pts)" max={3} value={data.listingAppointment || 0} onChange={(v) => onSave({ listingAppointment: v })} />
-        <CounterCard icon={Users} title="Buyer Consultation (10 Pts)" max={3} value={data.buyerConsultation || 0} onChange={(v) => onSave({ buyerConsultation: v })} />
-        <CounterCard icon={DollarSign} title="Transaction Close (10 Pts)" max={3} value={data.transactionClose || 0} onChange={(v) => onSave({ transactionClose: v })} />
+        <CounterCard icon={FileText} title="Listing Agreement Signed (10 Pts)" max={3} value={data.listingAppointment || 0} onChange={(v) => onSave({ listingAppointment: v })} />
+        <CounterCard icon={Users} title="Buyer Contract Ratified (10 Pts)" max={3} value={data.buyerConsultation || 0} onChange={(v) => onSave({ buyerConsultation: v })} />
+        <CounterCard icon={DollarSign} title="Transaction Closed (10 Pts)" max={3} value={data.transactionClose || 0} onChange={(v) => onSave({ transactionClose: v })} />
 
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
-          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Bonus Points</span>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Bonus Points (20 Pts)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
-
-        <CounterCard icon={Award} title="Cardinal Title Usage (10 Pts)" max={3} value={data.cardinalTitle || 0} onChange={(v) => onSave({ cardinalTitle: v })} />
         
-        {/* Referral Text Box con estado local */}
+        {/* Referral Text Box */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                 <Gift size={20} strokeWidth={2.5} />
               </div>
-              <span className="font-semibold text-slate-800 text-base">Referral (10 Pts)</span>
+              <span className="font-semibold text-slate-800 text-base">Agent Referral (20 Pts)</span>
             </div>
-            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+10 Pts</span>}
+            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
           </div>
           <input
             type="text"
@@ -861,28 +879,26 @@ function SummaryView({ logs, todayStr }) {
     texts: weeklyLogs.reduce((sum, l) => sum + (l.texts || 0), 0), 
     socialPosts: weeklyLogs.reduce((sum, l) => sum + (l.socialPosts || 0), 0),
     authorityAction: weeklyLogs.reduce((sum, l) => sum + (l.authorityAction || 0), 0), 
+    contactsAdded: weeklyLogs.reduce((sum, l) => sum + (l.contactsAdded || 0), 0),
     openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouse || 0), 0),
     networkingEvent: weeklyLogs.reduce((sum, l) => sum + (l.networkingEvent || 0), 0),
     listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointment || 0), 0),
     buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultation || 0), 0),
     transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionClose || 0), 0),
-    cardinalTitle: weeklyLogs.reduce((sum, l) => sum + (l.cardinalTitle || 0), 0),
     referrals: weeklyLogs.reduce((sum, l) => sum + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0), 0)
   };
 
-  // Summary ahora cuenta sobre 150 Actividades Totales de la Semana
   const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
   
-  // Cuenta días que tuvieron AL MENOS 1 actividad de cualquier tipo
   const daysLogged = weeklyLogs.filter(l => {
     return ((l.conversations || 0) + (l.followUpEmail || 0) + (l.texts || 0) + (l.socialPosts || 0) + 
-            (l.authorityAction || 0) + (l.openHouse || 0) + (l.networkingEvent || 0) + 
+            (l.authorityAction || 0) + (l.contactsAdded || 0) + (l.openHouse || 0) + (l.networkingEvent || 0) + 
             (l.listingAppointment || 0) + (l.buyerConsultation || 0) + (l.transactionClose || 0) + 
-            (l.cardinalTitle || 0) + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0)) > 0;
+            ((l.referralName && l.referralName.trim() !== '') ? 1 : 0)) > 0;
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossible = daysPassed * 30; // 30 Actividades máximas por día
+  const maxPossible = daysPassed * 30; 
   const weeklyPercent = maxPossible > 0 ? Math.round((totalItems / maxPossible) * 100) : 0;
 
   return (
@@ -905,13 +921,13 @@ function SummaryView({ logs, todayStr }) {
             { label: 'Texts', icon: MessageSquare, total: totals.texts, max: 15 }, 
             { label: 'Social Posts', icon: Share2, total: totals.socialPosts, max: 10 }, 
             { label: 'Authority Action', icon: UserPlus, total: totals.authorityAction, max: 5 },
+            { label: 'Contacts Added to CRM', icon: BookOpen, total: totals.contactsAdded, max: 15 },
             { label: 'Open House', icon: Home, total: totals.openHouse, max: 5 },
             { label: 'Networking', icon: Briefcase, total: totals.networkingEvent, max: 5 },
-            { label: 'Listing Appt', icon: FileText, total: totals.listingAppointment, max: 15 },
-            { label: 'Buyer Consult', icon: Users, total: totals.buyerConsultation, max: 15 },
-            { label: 'Transaction Close', icon: DollarSign, total: totals.transactionClose, max: 15 },
-            { label: 'Cardinal Title', icon: Award, total: totals.cardinalTitle, max: 15 },
-            { label: 'Referrals', icon: Gift, total: totals.referrals, max: 5 }
+            { label: 'Listing Agreement', icon: FileText, total: totals.listingAppointment, max: 15 },
+            { label: 'Buyer Contract', icon: Users, total: totals.buyerConsultation, max: 15 },
+            { label: 'Transaction Closed', icon: DollarSign, total: totals.transactionClose, max: 15 },
+            { label: 'Agent Referrals', icon: Gift, total: totals.referrals, max: 5 }
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -949,13 +965,12 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
         sortedLogs.map(log => {
           if (isWeekend(log.date) && !log.notes) return null;
           
-          // NUEVA REGLA: Solo es editable si la fecha del registro es exactamente HOY
           const isToday = log.date === todayStr; 
           
           const totalItems = (log.conversations || 0) + (log.followUpEmail || 0) + (log.texts || 0) + 
-                             (log.socialPosts || 0) + (log.authorityAction || 0) + (log.openHouse || 0) + 
+                             (log.socialPosts || 0) + (log.authorityAction || 0) + (log.contactsAdded || 0) + (log.openHouse || 0) + 
                              (log.networkingEvent || 0) + (log.listingAppointment || 0) + (log.buyerConsultation || 0) + 
-                             (log.transactionClose || 0) + (log.cardinalTitle || 0) + ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
+                             (log.transactionClose || 0) + ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
                              
           const pct = Math.round((totalItems / 30) * 100); 
           const canEdit = isToday && !readOnly;
