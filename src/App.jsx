@@ -446,7 +446,7 @@ export default function App() {
     
     const score = basePts + specialPts + referralPts;
 
-    const { error } = await supabase.from('daily_logs').upsert({
+    const newLogRecord = {
       id: logId, 
       userId: activeUserId, 
       date: date,
@@ -465,7 +465,21 @@ export default function App() {
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
+    };
+
+    // ACTUALIZACIÓN OPTIMISTA - Cambia la UI instantáneamente sin esperar a Supabase
+    setLogs(prev => {
+      const idx = prev.findIndex(l => l.id === logId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = newLogRecord;
+        return next;
+      } else {
+        return [...prev, newLogRecord];
+      }
     });
+
+    const { error } = await supabase.from('daily_logs').upsert(newLogRecord);
 
     if (error) console.error("Error saving log:", error);
   };
@@ -522,7 +536,7 @@ export default function App() {
       
       <main className="flex-1 overflow-y-auto pb-8 pt-4">
         <div className="max-w-md mx-auto p-4 space-y-6">
-          {activeTab === 'today' && <TodayView dateStr={todayStr} log={myLogs.find(l => l.date === todayStr)} onSave={(updates) => handleSaveLog(todayStr, updates)} profile={profile} onEnableNotifications={() => {}} />}
+          {activeTab === 'today' && <TodayView dateStr={todayStr} log={myLogs.find(l => l.date === todayStr)} onSave={(updates) => handleSaveLog(todayStr, updates)} profile={profile} />}
           {activeTab === 'history' && <HistoryView logs={myLogs} onSaveLog={handleSaveLog} todayStr={todayStr} />}
           {activeTab === 'summary' && <SummaryView logs={myLogs} todayStr={todayStr} />}
           {activeTab === 'ranking' && <RankingView profiles={allProfiles} logs={logs} todayStr={todayStr} isAdmin={profile?.role === 'admin'} />}
@@ -718,6 +732,22 @@ function RankingView({ profiles, logs, todayStr, isAdmin }) {
 }
 
 function TodayView({ dateStr, log, onSave, profile }) {
+  const data = log || { 
+    conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
+    openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
+    transactionClose: 0, cardinalTitle: 0, referralName: '', notes: '' 
+  };
+
+  // Estados locales para las cajas de texto (para escribir sin lag)
+  const [localReferral, setLocalReferral] = useState(data.referralName || '');
+  const [localNotes, setLocalNotes] = useState(data.notes || '');
+
+  // Sincronizar el estado local cuando cambia el día
+  useEffect(() => {
+    setLocalReferral(data.referralName || '');
+    setLocalNotes(data.notes || '');
+  }, [dateStr, data.referralName, data.notes]);
+
   if (isWeekend(dateStr)) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-12 px-4">
@@ -726,20 +756,21 @@ function TodayView({ dateStr, log, onSave, profile }) {
         <p className="text-slate-500 mb-8 font-medium">No activities required today. Take a break or review your week.</p>
         <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm w-full text-left">
           <h3 className="font-bold text-slate-800 mb-3">Weekend Reflection</h3>
-          <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" placeholder="Jot down your ideas or plans for next week..." rows={4} value={log?.notes || ''} onChange={(e) => onSave({ notes: e.target.value })} />
+          <textarea 
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" 
+            placeholder="Jot down your ideas or plans for next week..." 
+            rows={4} 
+            value={localNotes} 
+            onChange={(e) => setLocalNotes(e.target.value)} 
+            onBlur={() => onSave({ notes: localNotes })}
+          />
         </div>
       </div>
     );
   }
-
-  const data = log || { 
-    conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
-    openHouse: 0, networkingEvent: 0, listingAppointment: 0, buyerConsultation: 0, 
-    transactionClose: 0, cardinalTitle: 0, referralName: '', notes: '' 
-  };
   
   // Total Items Completados (Max 30 al día)
-  const isReferralFilled = data.referralName && data.referralName.trim() !== '';
+  const isReferralFilled = localReferral.trim() !== '';
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.openHouse || 0) + 
                      (data.networkingEvent || 0) + (data.listingAppointment || 0) + (data.buyerConsultation || 0) + 
@@ -782,7 +813,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
 
         <CounterCard icon={Award} title="Cardinal Title Usage (10 Pts)" max={3} value={data.cardinalTitle || 0} onChange={(v) => onSave({ cardinalTitle: v })} />
         
-        {/* Referral Text Box */}
+        {/* Referral Text Box con estado local */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
@@ -797,8 +828,9 @@ function TodayView({ dateStr, log, onSave, profile }) {
             type="text"
             placeholder="Enter referral name..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-            value={data.referralName || ''}
-            onChange={(e) => onSave({ referralName: e.target.value })}
+            value={localReferral}
+            onChange={(e) => setLocalReferral(e.target.value)}
+            onBlur={() => onSave({ referralName: localReferral })}
           />
         </div>
 
@@ -806,7 +838,14 @@ function TodayView({ dateStr, log, onSave, profile }) {
       
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm mt-6">
         <label className="block font-bold text-slate-800 mb-3">Today's Wins / Obstacles</label>
-        <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" placeholder="Had an excellent conversation with..." rows={3} value={data.notes || ''} onChange={(e) => onSave({ notes: e.target.value })} />
+        <textarea 
+          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" 
+          placeholder="Had an excellent conversation with..." 
+          rows={3} 
+          value={localNotes} 
+          onChange={(e) => setLocalNotes(e.target.value)} 
+          onBlur={() => onSave({ notes: localNotes })}
+        />
       </div>
     </div>
   );
