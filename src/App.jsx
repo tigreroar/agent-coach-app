@@ -142,7 +142,6 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
         </div>
       </div>
       
-      {/* Sponsor Logo Section */}
       <div className="flex items-center gap-3 text-[15px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 p-3 rounded-xl w-fit">
         <span>Sponsored by:</span>
         <img 
@@ -447,19 +446,28 @@ export default function App() {
     const logId = `${activeUserId}_${date}`;
     
     const existing = myLogs.find(l => l.date === date) || { 
-      conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
-      contactsAdded: 0, openHouse: 0, networkingEvent: 0, listingAppointment: 0, 
-      buyerConsultation: 0, transactionClose: 0, referralName: '' 
+      conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
+      openHouse: 0, openHouseAddress: '', 
+      networkingEvent: 0, networkingEventName: '', 
+      listingAppointment: 0, listingAppointmentAddress: '', 
+      buyerConsultation: 0, buyerConsultationAddress: '', 
+      transactionClose: 0, transactionCloseAddress: '', 
+      referralName: '', notes: '' 
     };
     const merged = { ...existing, ...updates };
     
+    // Verificadores (Solo se cuentan si hay texto)
+    const ohVal = merged.openHouseAddress?.trim() ? (merged.openHouse || 0) : 0;
+    const netVal = merged.networkingEventName?.trim() ? (merged.networkingEvent || 0) : 0;
+    const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
+    const buyerVal = merged.buyerConsultationAddress?.trim() ? (merged.buyerConsultation || 0) : 0;
+    const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
+    const isReferralFilled = merged.referralName && merged.referralName.trim() !== '';
+
     // Cálculo de Score 
-    // Base (1 pt):
     const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
-    // Special (10 pts):
-    const specialPts = ((merged.openHouse || 0) * 10) + ((merged.networkingEvent || 0) * 10) + ((merged.listingAppointment || 0) * 10) + ((merged.buyerConsultation || 0) * 10) + ((merged.transactionClose || 0) * 10);
-    // Referral (20 pts):
-    const referralPts = (merged.referralName && merged.referralName.trim() !== '') ? 20 : 0;
+    const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
+    const referralPts = isReferralFilled ? 20 : 0;
     
     const score = basePts + specialPts + referralPts;
 
@@ -474,10 +482,15 @@ export default function App() {
       authorityAction: merged.authorityAction || 0,
       contactsAdded: merged.contactsAdded || 0,
       openHouse: merged.openHouse || 0, 
+      openHouseAddress: merged.openHouseAddress || '',
       networkingEvent: merged.networkingEvent || 0,
+      networkingEventName: merged.networkingEventName || '',
       listingAppointment: merged.listingAppointment || 0,
+      listingAppointmentAddress: merged.listingAppointmentAddress || '',
       buyerConsultation: merged.buyerConsultation || 0,
+      buyerConsultationAddress: merged.buyerConsultationAddress || '',
       transactionClose: merged.transactionClose || 0,
+      transactionCloseAddress: merged.transactionCloseAddress || '',
       referralName: merged.referralName || '',
       notes: merged.notes || '', 
       score: score, 
@@ -496,7 +509,6 @@ export default function App() {
     });
 
     const { error } = await supabase.from('daily_logs').upsert(newLogRecord);
-
     if (error) console.error("Error saving log:", error);
   };
 
@@ -603,11 +615,7 @@ function OnboardingView({ onComplete }) {
     
     const cleanEmail = email.trim().toLowerCase();
 
-    const { data: existingUsers, error: searchError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', cleanEmail);
-
+    const { data: existingUsers } = await supabase.from('users').select('*').eq('email', cleanEmail);
     const existingProfile = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
     let targetId = existingProfile ? existingProfile.id : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
@@ -615,21 +623,12 @@ function OnboardingView({ onComplete }) {
       const role = name.toLowerCase().includes('admin') ? 'admin' : 'agent';
       const finalPhotoURL = photoURL.trim() || generateAvatar(name);
       
-      const { error } = await supabase.from('users').insert([{
-        id: targetId, 
-        name: name.trim(), 
-        email: cleanEmail, 
-        phone: phone.trim(), 
-        role: role, 
-        photoURL: finalPhotoURL,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
-        createdAt: new Date().toISOString(), 
-        fcmToken: null
+      await supabase.from('users').insert([{
+        id: targetId, name: name.trim(), email: cleanEmail, phone: phone.trim(), 
+        role: role, photoURL: finalPhotoURL, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
+        createdAt: new Date().toISOString(), fcmToken: null
       }]);
-      
-      if (error) console.error("Error creating user:", error);
     }
-
     setLoading(false);
     onComplete(targetId); 
   };
@@ -662,17 +661,8 @@ function OnboardingView({ onComplete }) {
           
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handleImageUpload} 
-              id="photo-upload" 
-              className="hidden" 
-            />
-            <label 
-              htmlFor="photo-upload" 
-              className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium"
-            >
+            <input type="file" accept="image/*" onChange={handleImageUpload} id="photo-upload" className="hidden" />
+            <label htmlFor="photo-upload" className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium">
               <Camera size={20} className={photoURL ? "text-amber-500" : "text-slate-400"} />
               <span className="text-sm">{photoURL ? 'Photo uploaded - Click to change' : 'Upload a Profile Photo'}</span>
             </label>
@@ -689,9 +679,9 @@ function OnboardingView({ onComplete }) {
   );
 }
 
-function RankingView({ profiles, logs, todayStr, isAdmin }) {
+function RankingView({ profiles, logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 835; // ACTUALIZADO: 835 puntos max a la semana
+  const maxWeeklyPoints = 835; 
   
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
@@ -749,18 +739,29 @@ function RankingView({ profiles, logs, todayStr, isAdmin }) {
 
 function TodayView({ dateStr, log, onSave, profile }) {
   const data = log || { 
-    conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, 
-    contactsAdded: 0, openHouse: 0, networkingEvent: 0, listingAppointment: 0, 
-    buyerConsultation: 0, transactionClose: 0, referralName: '', notes: '' 
+    conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
+    openHouse: 0, openHouseAddress: '', networkingEvent: 0, networkingEventName: '', 
+    listingAppointment: 0, listingAppointmentAddress: '', buyerConsultation: 0, buyerConsultationAddress: '', 
+    transactionClose: 0, transactionCloseAddress: '', referralName: '', notes: '' 
   };
 
+  const [localOHAddr, setLocalOHAddr] = useState(data.openHouseAddress || '');
+  const [localNetName, setLocalNetName] = useState(data.networkingEventName || '');
+  const [localListAddr, setLocalListAddr] = useState(data.listingAppointmentAddress || '');
+  const [localBuyerAddr, setLocalBuyerAddr] = useState(data.buyerConsultationAddress || '');
+  const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
   const [localReferral, setLocalReferral] = useState(data.referralName || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
 
   useEffect(() => {
+    setLocalOHAddr(data.openHouseAddress || '');
+    setLocalNetName(data.networkingEventName || '');
+    setLocalListAddr(data.listingAppointmentAddress || '');
+    setLocalBuyerAddr(data.buyerConsultationAddress || '');
+    setLocalTransAddr(data.transactionCloseAddress || '');
     setLocalReferral(data.referralName || '');
     setLocalNotes(data.notes || '');
-  }, [dateStr, data.referralName, data.notes]);
+  }, [dateStr, data]);
 
   if (isWeekend(dateStr)) {
     return (
@@ -772,24 +773,45 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <h3 className="font-bold text-slate-800 mb-3">Weekend Reflection</h3>
           <textarea 
             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" 
-            placeholder="Jot down your ideas or plans for next week..." 
-            rows={4} 
-            value={localNotes} 
-            onChange={(e) => setLocalNotes(e.target.value)} 
-            onBlur={() => onSave({ notes: localNotes })}
+            placeholder="Jot down your ideas or plans for next week..." rows={4} 
+            value={localNotes} onChange={(e) => setLocalNotes(e.target.value)} onBlur={() => onSave({ notes: localNotes })}
           />
         </div>
       </div>
     );
   }
   
+  const ohVal = localOHAddr.trim() !== '' ? (data.openHouse || 0) : 0;
+  const netVal = localNetName.trim() !== '' ? (data.networkingEvent || 0) : 0;
+  const listVal = localListAddr.trim() !== '' ? (data.listingAppointment || 0) : 0;
+  const buyerVal = localBuyerAddr.trim() !== '' ? (data.buyerConsultation || 0) : 0;
+  const transVal = localTransAddr.trim() !== '' ? (data.transactionClose || 0) : 0;
   const isReferralFilled = localReferral.trim() !== '';
+
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
-                     (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + (data.openHouse || 0) + 
-                     (data.networkingEvent || 0) + (data.listingAppointment || 0) + (data.buyerConsultation || 0) + 
-                     (data.transactionClose || 0) + (isReferralFilled ? 1 : 0);
+                     (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
+                     ohVal + netVal + listVal + buyerVal + transVal + (isReferralFilled ? 1 : 0);
                      
   const percent = Math.round((totalItems / 30) * 100);
+
+  const renderConditionalInput = (condition, placeholder, val, setVal, fieldKey) => {
+    if (!condition) return null;
+    const isFilled = val.trim() !== '';
+    return (
+      <div className={`mt-2 mb-4 p-4 rounded-2xl border transition-all duration-300 shadow-sm ${isFilled ? 'bg-amber-50/50 border-amber-300' : 'bg-red-50 border-red-200 animate-pulse'}`}>
+        <div className="flex justify-between items-center mb-2 px-1">
+          <span className={`text-xs font-bold uppercase tracking-wider ${isFilled ? 'text-amber-600' : 'text-red-500'}`}>
+            {isFilled ? '✓ Details saved. Points unlocked!' : '⚠️ Required to unlock points'}
+          </span>
+        </div>
+        <input
+          type="text" placeholder={placeholder}
+          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-amber-400 transition-all font-medium shadow-inner"
+          value={val} onChange={(e) => setVal(e.target.value)} onBlur={() => onSave({ [fieldKey]: val })}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-4">
@@ -819,11 +841,30 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        <CounterCard icon={Home} title="Open House (10 Pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
-        <CounterCard icon={Briefcase} title="Networking Event (10 Pts)" max={1} value={data.networkingEvent || 0} onChange={(v) => onSave({ networkingEvent: v })} />
-        <CounterCard icon={FileText} title="Listing Agreement Signed (10 Pts)" max={3} value={data.listingAppointment || 0} onChange={(v) => onSave({ listingAppointment: v })} />
-        <CounterCard icon={Users} title="Buyer Contract Ratified (10 Pts)" max={3} value={data.buyerConsultation || 0} onChange={(v) => onSave({ buyerConsultation: v })} />
-        <CounterCard icon={DollarSign} title="Transaction Closed (10 Pts)" max={3} value={data.transactionClose || 0} onChange={(v) => onSave({ transactionClose: v })} />
+        <div>
+          <CounterCard icon={Home} title="Open House (10 Pts)" max={1} value={data.openHouse || 0} onChange={(v) => onSave({ openHouse: v })} />
+          {renderConditionalInput(data.openHouse > 0, "Enter Open House Address...", localOHAddr, setLocalOHAddr, 'openHouseAddress')}
+        </div>
+
+        <div>
+          <CounterCard icon={Briefcase} title="Networking Event (10 Pts)" max={1} value={data.networkingEvent || 0} onChange={(v) => onSave({ networkingEvent: v })} />
+          {renderConditionalInput(data.networkingEvent > 0, "Enter Event Name...", localNetName, setLocalNetName, 'networkingEventName')}
+        </div>
+
+        <div>
+          <CounterCard icon={FileText} title="Listing Agreement Signed (10 Pts)" max={3} value={data.listingAppointment || 0} onChange={(v) => onSave({ listingAppointment: v })} />
+          {renderConditionalInput(data.listingAppointment > 0, "Enter Property Address...", localListAddr, setLocalListAddr, 'listingAppointmentAddress')}
+        </div>
+
+        <div>
+          <CounterCard icon={Users} title="Buyer Contract Ratified (10 Pts)" max={3} value={data.buyerConsultation || 0} onChange={(v) => onSave({ buyerConsultation: v })} />
+          {renderConditionalInput(data.buyerConsultation > 0, "Enter Property Address...", localBuyerAddr, setLocalBuyerAddr, 'buyerConsultationAddress')}
+        </div>
+
+        <div>
+          <CounterCard icon={DollarSign} title="Transaction Closed (10 Pts)" max={3} value={data.transactionClose || 0} onChange={(v) => onSave({ transactionClose: v })} />
+          {renderConditionalInput(data.transactionClose > 0, "Enter Property Address...", localTransAddr, setLocalTransAddr, 'transactionCloseAddress')}
+        </div>
 
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
@@ -831,7 +872,6 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        {/* Referral Text Box */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
@@ -843,12 +883,9 @@ function TodayView({ dateStr, log, onSave, profile }) {
             {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
           </div>
           <input
-            type="text"
-            placeholder="Enter referral name..."
+            type="text" placeholder="Enter referral name..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-            value={localReferral}
-            onChange={(e) => setLocalReferral(e.target.value)}
-            onBlur={() => onSave({ referralName: localReferral })}
+            value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
           />
         </div>
 
@@ -858,11 +895,8 @@ function TodayView({ dateStr, log, onSave, profile }) {
         <label className="block font-bold text-slate-800 mb-3">Today's Wins / Obstacles</label>
         <textarea 
           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all resize-none" 
-          placeholder="Had an excellent conversation with..." 
-          rows={3} 
-          value={localNotes} 
-          onChange={(e) => setLocalNotes(e.target.value)} 
-          onBlur={() => onSave({ notes: localNotes })}
+          placeholder="Had an excellent conversation with..." rows={3} 
+          value={localNotes} onChange={(e) => setLocalNotes(e.target.value)} onBlur={() => onSave({ notes: localNotes })}
         />
       </div>
     </div>
@@ -880,11 +914,11 @@ function SummaryView({ logs, todayStr }) {
     socialPosts: weeklyLogs.reduce((sum, l) => sum + (l.socialPosts || 0), 0),
     authorityAction: weeklyLogs.reduce((sum, l) => sum + (l.authorityAction || 0), 0), 
     contactsAdded: weeklyLogs.reduce((sum, l) => sum + (l.contactsAdded || 0), 0),
-    openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouse || 0), 0),
-    networkingEvent: weeklyLogs.reduce((sum, l) => sum + (l.networkingEvent || 0), 0),
-    listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointment || 0), 0),
-    buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultation || 0), 0),
-    transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionClose || 0), 0),
+    openHouse: weeklyLogs.reduce((sum, l) => sum + (l.openHouseAddress?.trim() ? (l.openHouse || 0) : 0), 0),
+    networkingEvent: weeklyLogs.reduce((sum, l) => sum + (l.networkingEventName?.trim() ? (l.networkingEvent || 0) : 0), 0),
+    listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0), 0),
+    buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0), 0),
+    transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0), 0),
     referrals: weeklyLogs.reduce((sum, l) => sum + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0), 0)
   };
 
@@ -892,8 +926,12 @@ function SummaryView({ logs, todayStr }) {
   
   const daysLogged = weeklyLogs.filter(l => {
     return ((l.conversations || 0) + (l.followUpEmail || 0) + (l.texts || 0) + (l.socialPosts || 0) + 
-            (l.authorityAction || 0) + (l.contactsAdded || 0) + (l.openHouse || 0) + (l.networkingEvent || 0) + 
-            (l.listingAppointment || 0) + (l.buyerConsultation || 0) + (l.transactionClose || 0) + 
+            (l.authorityAction || 0) + (l.contactsAdded || 0) + 
+            (l.openHouseAddress?.trim() ? (l.openHouse || 0) : 0) + 
+            (l.networkingEventName?.trim() ? (l.networkingEvent || 0) : 0) + 
+            (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0) + 
+            (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0) + 
+            (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0) + 
             ((l.referralName && l.referralName.trim() !== '') ? 1 : 0)) > 0;
   }).length;
   
@@ -968,9 +1006,13 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
           const isToday = log.date === todayStr; 
           
           const totalItems = (log.conversations || 0) + (log.followUpEmail || 0) + (log.texts || 0) + 
-                             (log.socialPosts || 0) + (log.authorityAction || 0) + (log.contactsAdded || 0) + (log.openHouse || 0) + 
-                             (log.networkingEvent || 0) + (log.listingAppointment || 0) + (log.buyerConsultation || 0) + 
-                             (log.transactionClose || 0) + ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
+                             (log.socialPosts || 0) + (log.authorityAction || 0) + (log.contactsAdded || 0) + 
+                             (log.openHouseAddress?.trim() ? (log.openHouse || 0) : 0) + 
+                             (log.networkingEventName?.trim() ? (log.networkingEvent || 0) : 0) + 
+                             (log.listingAppointmentAddress?.trim() ? (log.listingAppointment || 0) : 0) + 
+                             (log.buyerConsultationAddress?.trim() ? (log.buyerConsultation || 0) : 0) + 
+                             (log.transactionCloseAddress?.trim() ? (log.transactionClose || 0) : 0) + 
+                             ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
                              
           const pct = Math.round((totalItems / 30) * 100); 
           const canEdit = isToday && !readOnly;
