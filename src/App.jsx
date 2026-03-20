@@ -122,6 +122,7 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
               className="relative p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <BellRing size={20} />
+              {/* Notificación: Círculo rojo con el número de mensajes no leídos */}
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-slate-900">
                   {unreadCount}
@@ -429,9 +430,11 @@ export default function App() {
   const myLogs = useMemo(() => logs.filter(l => l.userId === activeUserId), [logs, activeUserId]);
   
   const myMessages = useMemo(() => {
-    return messages.filter(m => m.receiverId === activeUserId || m.receiverId === null);
+    // Ya no usamos receiverId === null. Ahora todos los mensajes son enviados de manera personal al ID.
+    return messages.filter(m => m.receiverId === activeUserId);
   }, [messages, activeUserId]);
   
+  // Cantidad de notificaciones no leídas
   const unreadCount = myMessages.filter(m => !m.read).length;
 
   const handleMarkMessagesAsRead = async (msgIds) => {
@@ -456,7 +459,6 @@ export default function App() {
     };
     const merged = { ...existing, ...updates };
     
-    // Verificadores (Solo se cuentan si hay texto)
     const ohVal = merged.openHouseAddress?.trim() ? (merged.openHouse || 0) : 0;
     const netVal = merged.networkingEventName?.trim() ? (merged.networkingEvent || 0) : 0;
     const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
@@ -464,7 +466,6 @@ export default function App() {
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
     const isReferralFilled = merged.referralName && merged.referralName.trim() !== '';
 
-    // Cálculo de Score 
     const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
     const referralPts = isReferralFilled ? 20 : 0;
@@ -661,8 +662,17 @@ function OnboardingView({ onComplete }) {
           
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
-            <input type="file" accept="image/*" onChange={handleImageUpload} id="photo-upload" className="hidden" />
-            <label htmlFor="photo-upload" className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload} 
+              id="photo-upload" 
+              className="hidden" 
+            />
+            <label 
+              htmlFor="photo-upload" 
+              className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium"
+            >
               <Camera size={20} className={photoURL ? "text-amber-500" : "text-slate-400"} />
               <span className="text-sm">{photoURL ? 'Photo uploaded - Click to change' : 'Upload a Profile Photo'}</span>
             </label>
@@ -872,18 +882,19 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
+        {/* Referral Text Box */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                 <Gift size={20} strokeWidth={2.5} />
               </div>
-              <span className="font-semibold text-slate-800 text-base">Agent Referral (20 Pts)</span>
+              <span className="font-semibold text-slate-800 text-base">Invite An Agent (20 Pts)</span>
             </div>
             {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
           </div>
           <input
-            type="text" placeholder="Enter referral name..."
+            type="text" placeholder="Enter agent name..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
             value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
           />
@@ -965,7 +976,7 @@ function SummaryView({ logs, todayStr }) {
             { label: 'Listing Agreement', icon: FileText, total: totals.listingAppointment, max: 15 },
             { label: 'Buyer Contract', icon: Users, total: totals.buyerConsultation, max: 15 },
             { label: 'Transaction Closed', icon: DollarSign, total: totals.transactionClose, max: 15 },
-            { label: 'Agent Referrals', icon: Gift, total: totals.referrals, max: 5 }
+            { label: 'Invited Agents', icon: Gift, total: totals.referrals, max: 5 }
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -1061,16 +1072,30 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
     setIsSending(true);
 
     const fullMessage = messageText.trim() + '\n\nSincerely, Fernando, your COACH';
-    const receiverId = messageTargetType === 'agent' ? selectedAgentId : null;
     
-    const { error } = await supabase.from('messages').insert([{
-      id: Math.random().toString(36).substring(2, 15),
-      senderId: activeUserId,
-      receiverId: receiverId,
-      message: fullMessage,
-      createdAt: new Date().toISOString(),
-      read: false
-    }]);
+    // MEJORA: Para que a cada persona le llegue una notificación independiente, en vez de un solo mensaje al aire.
+    let inserts = [];
+    if (messageTargetType === 'team') {
+      inserts = directory.map(agent => ({
+        id: Math.random().toString(36).substring(2, 15),
+        senderId: activeUserId,
+        receiverId: agent.id, // Se lo asignamos individualmente a cada uno
+        message: fullMessage,
+        createdAt: new Date().toISOString(),
+        read: false
+      }));
+    } else {
+      inserts = [{
+        id: Math.random().toString(36).substring(2, 15),
+        senderId: activeUserId,
+        receiverId: selectedAgentId,
+        message: fullMessage,
+        createdAt: new Date().toISOString(),
+        read: false
+      }];
+    }
+
+    const { error } = await supabase.from('messages').insert(inserts);
 
     setIsSending(false);
     if (!error) {
