@@ -26,8 +26,7 @@ import {
   FileText,
   DollarSign,
   Gift,
-  BookOpen,
-  Copy
+  BookOpen
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -73,17 +72,6 @@ const getDaysAgoStr = (days) => {
 
 const generateAvatar = (name) => {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'Agent')}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
-};
-
-// Copy function compatible with iframes
-const copyToClipboard = (text) => {
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  try { document.execCommand('copy'); } catch (err) {}
-  document.body.removeChild(textArea);
 };
 
 // --- COMPONENTS ---
@@ -467,7 +455,7 @@ export default function App() {
       listingAppointment: 0, listingAppointmentAddress: '', 
       buyerConsultation: 0, buyerConsultationAddress: '', 
       transactionClose: 0, transactionCloseAddress: '', 
-      referralName: '', referralEmail: '', referralStatus: 'none', notes: '' 
+      referralName: '', notes: '' 
     };
     const merged = { ...existing, ...updates };
     
@@ -476,13 +464,11 @@ export default function App() {
     const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
     const buyerVal = merged.buyerConsultationAddress?.trim() ? (merged.buyerConsultation || 0) : 0;
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
+    const isReferralFilled = merged.referralName && merged.referralName.trim() !== '';
 
     const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
-    
-    // REGLA ACTUALIZADA: Los 20 puntos se otorgan ÚNICAMENTE si el status del referido es "registered"
-    const isReferralRegistered = merged.referralStatus === 'registered';
-    const referralPts = isReferralRegistered ? 20 : 0;
+    const referralPts = isReferralFilled ? 20 : 0;
     
     const score = basePts + specialPts + referralPts;
 
@@ -507,8 +493,6 @@ export default function App() {
       transactionClose: merged.transactionClose || 0,
       transactionCloseAddress: merged.transactionCloseAddress || '',
       referralName: merged.referralName || '',
-      referralEmail: (merged.referralEmail || '').toLowerCase(), // Nueva columna requerida en Supabase
-      referralStatus: merged.referralStatus || 'none', // Nueva columna requerida en Supabase
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
@@ -526,11 +510,7 @@ export default function App() {
     });
 
     const { error } = await supabase.from('daily_logs').upsert(newLogRecord);
-    // ALERTA AÑADIDA: Para ayudar a identificar el error en las columnas de la Base de Datos
-    if (error) {
-      console.error("Error saving log:", error);
-      alert(`Error guardando en Supabase: ${error.message}\n\nAsegúrate de que las columnas 'referralName', 'referralEmail' y 'referralStatus' existan en la tabla 'daily_logs' respetando EXACTAMENTE las mayúsculas (Case Sensitive).`);
-    }
+    if (error) console.error("Error saving log:", error);
   };
 
   const handleUpdateProfile = async (updatedData) => {
@@ -649,23 +629,6 @@ function OnboardingView({ onComplete }) {
         role: role, photoURL: finalPhotoURL, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
         createdAt: new Date().toISOString(), fcmToken: null
       }]);
-
-      // LÓGICA PARA LIBERAR PUNTOS DEL REFERIDO AL REGISTRARSE
-      const { data: referredLogs } = await supabase
-        .from('daily_logs')
-        .select('*')
-        .eq('referralEmail', cleanEmail)
-        .eq('referralStatus', 'pending');
-
-      if (referredLogs && referredLogs.length > 0) {
-        for (const rLog of referredLogs) {
-          const newScore = (rLog.score || 0) + 20; 
-          await supabase
-            .from('daily_logs')
-            .update({ referralStatus: 'registered', score: newScore })
-            .eq('id', rLog.id);
-        }
-      }
     }
     setLoading(false);
     onComplete(targetId); 
@@ -789,7 +752,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
     openHouse: 0, openHouseAddress: '', networkingEvent: 0, networkingEventName: '', 
     listingAppointment: 0, listingAppointmentAddress: '', buyerConsultation: 0, buyerConsultationAddress: '', 
-    transactionClose: 0, transactionCloseAddress: '', referralName: '', referralEmail: '', referralStatus: 'none', notes: '' 
+    transactionClose: 0, transactionCloseAddress: '', referralName: '', notes: '' 
   };
 
   const [localOHAddr, setLocalOHAddr] = useState(data.openHouseAddress || '');
@@ -797,12 +760,8 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const [localListAddr, setLocalListAddr] = useState(data.listingAppointmentAddress || '');
   const [localBuyerAddr, setLocalBuyerAddr] = useState(data.buyerConsultationAddress || '');
   const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
-  
-  // Referrals local state
-  const [localRefName, setLocalRefName] = useState(data.referralName || '');
-  const [localRefEmail, setLocalRefEmail] = useState(data.referralEmail || '');
+  const [localReferral, setLocalReferral] = useState(data.referralName || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
-  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     setLocalOHAddr(data.openHouseAddress || '');
@@ -810,8 +769,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     setLocalListAddr(data.listingAppointmentAddress || '');
     setLocalBuyerAddr(data.buyerConsultationAddress || '');
     setLocalTransAddr(data.transactionCloseAddress || '');
-    setLocalRefName(data.referralName || '');
-    setLocalRefEmail(data.referralEmail || '');
+    setLocalReferral(data.referralName || '');
     setLocalNotes(data.notes || '');
   }, [dateStr, data]);
 
@@ -838,7 +796,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const listVal = localListAddr.trim() !== '' ? (data.listingAppointment || 0) : 0;
   const buyerVal = localBuyerAddr.trim() !== '' ? (data.buyerConsultation || 0) : 0;
   const transVal = localTransAddr.trim() !== '' ? (data.transactionClose || 0) : 0;
-  const isReferralFilled = localRefName.trim() !== '' && localRefEmail.trim() !== '';
+  const isReferralFilled = localReferral.trim() !== '';
 
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
@@ -863,22 +821,6 @@ function TodayView({ dateStr, log, onSave, profile }) {
         />
       </div>
     );
-  };
-
-  const handleCopyInvite = () => {
-    if (!localRefName.trim() || !localRefEmail.trim()) return;
-    const msg = `${profile?.name || 'A user'} has invited you to Agent Coach AI! Join here: https://agentcoachai.com`;
-    copyToClipboard(msg);
-    setIsCopied(true);
-    
-    // Save state to pending
-    onSave({ 
-      referralName: localRefName.trim(), 
-      referralEmail: localRefEmail.trim().toLowerCase(),
-      referralStatus: 'pending' 
-    });
-
-    setTimeout(() => setIsCopied(false), 3000);
   };
 
   return (
@@ -940,64 +882,22 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        {/* MODIFIED REFERRAL SECTION */}
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${data.referralStatus === 'registered' ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
+        {/* Referral Text Box */}
+        <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl transition-colors ${data.referralStatus === 'registered' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+              <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                 <Gift size={20} strokeWidth={2.5} />
               </div>
               <span className="font-semibold text-slate-800 text-base">Invite An Agent (20 Pts)</span>
             </div>
-            {data.referralStatus === 'registered' ? (
-              <span className="text-sm font-bold text-amber-500">+20 Pts Unlocked!</span>
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending (0/20 Pts)</span>
-            )}
+            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
           </div>
-          
-          {data.referralStatus === 'registered' ? (
-            <div className="p-3 bg-amber-100/50 rounded-xl border border-amber-200 text-center animate-in zoom-in-95 duration-200">
-              <p className="text-sm font-bold text-amber-700">🎉 Success! <strong>{data.referralName}</strong> joined. Points added!</p>
-            </div>
-          ) : data.referralStatus === 'pending' ? (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center animate-in zoom-in-95 duration-200">
-              <p className="text-amber-700 font-bold text-sm flex items-center justify-center gap-2 mb-1">
-                <CheckCircle2 size={16} /> Pending referral to Subscription
-              </p>
-              <p className="text-xs text-slate-600">Waiting for <strong>{data.referralEmail}</strong> to register.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* AÑADIDO: onBlur para que no se borre al hacer clic en otro lado accidentalmente */}
-              <input
-                type="text" placeholder="Enter agent name..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-                value={localRefName} 
-                onChange={(e) => setLocalRefName(e.target.value)}
-                onBlur={() => onSave({ referralName: localRefName })}
-              />
-              <input
-                type="email" placeholder="Enter agent email address..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-                value={localRefEmail} 
-                onChange={(e) => setLocalRefEmail(e.target.value)}
-                onBlur={() => onSave({ referralEmail: localRefEmail })}
-              />
-              
-              {localRefName.trim() && localRefEmail.trim() && (
-                <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in duration-300">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Message to send:</p>
-                  <p className="text-sm text-slate-700 italic font-medium mb-4 bg-white p-3 rounded-lg border border-slate-100">
-                    "{profile?.name || 'A user'} has invited you to Agent Coach AI! Join here: https://agentcoachai.com"
-                  </p>
-                  <button onClick={handleCopyInvite} className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2 ${isCopied ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                    {isCopied ? <><CheckCircle2 size={16} /> Copied!</> : <><Copy size={16} /> Copy Message & Send Invite</>}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <input
+            type="text" placeholder="Enter agent name..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+            value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
+          />
         </div>
 
       </div>
