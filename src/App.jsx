@@ -26,7 +26,8 @@ import {
   FileText,
   DollarSign,
   Gift,
-  BookOpen
+  BookOpen,
+  Copy
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -762,6 +763,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
   const [localReferral, setLocalReferral] = useState(data.referralName || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setLocalOHAddr(data.openHouseAddress || '');
@@ -772,6 +774,29 @@ function TodayView({ dateStr, log, onSave, profile }) {
     setLocalReferral(data.referralName || '');
     setLocalNotes(data.notes || '');
   }, [dateStr, data]);
+
+  const handleCopy = () => {
+    const referralMessage = `${profile?.name || 'User'} has invited you to Agent Coach AI! Join here: https://agentcoachai.com`;
+    
+    // Método seguro para iframes/dispositivos móviles
+    const textArea = document.createElement("textarea");
+    textArea.value = referralMessage;
+    // Hacerlo invisible
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text', err);
+    }
+    document.body.removeChild(textArea);
+  };
 
   if (isWeekend(dateStr)) {
     return (
@@ -898,6 +923,25 @@ function TodayView({ dateStr, log, onSave, profile }) {
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
             value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
           />
+          {isReferralFilled && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <p className="text-xs font-bold text-slate-500 mb-2">
+                Copy the following message and send it to your referral via text, WhatsApp, or email:
+              </p>
+              <div className="bg-white border border-amber-200 rounded-xl p-3 relative shadow-inner">
+                <p className="text-sm text-slate-700 italic pr-12">
+                  "{profile?.name || 'User'} has invited you to Agent Coach AI! Join here: https://agentcoachai.com"
+                </p>
+                <button
+                  onClick={handleCopy}
+                  className="absolute top-2 right-2 p-2 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg transition-colors flex items-center justify-center"
+                  title="Copy to clipboard"
+                >
+                  {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
