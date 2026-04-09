@@ -123,7 +123,6 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
               className="relative p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <BellRing size={20} />
-              {/* Notificación: Círculo rojo con el número de mensajes no leídos */}
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-slate-900">
                   {unreadCount}
@@ -146,12 +145,9 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
       
       <div className="flex items-center gap-3 text-[15px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 p-3 rounded-xl w-fit">
         <span>Sponsored by:</span>
-        <img 
-          src="/maxus-logo.png" 
-          alt="Sponsor Logo" 
-          className="h-10 object-contain" 
-          onError={(e) => { e.target.style.display = 'none'; e.target.previousSibling.innerText = 'Sponsored by: Maxus Realty Group'; }} 
-        />
+        <div className="h-10 px-2 flex items-center justify-center bg-white/10 rounded-lg border border-white/5">
+          <span className="font-black text-white italic tracking-tighter">MAXUS <span className="text-amber-400 font-medium tracking-normal text-xs not-italic">REALTY GROUP</span></span>
+        </div>
       </div>
     </div>
   </header>
@@ -431,11 +427,9 @@ export default function App() {
   const myLogs = useMemo(() => logs.filter(l => l.userId === activeUserId), [logs, activeUserId]);
   
   const myMessages = useMemo(() => {
-    // Ya no usamos receiverId === null. Ahora todos los mensajes son enviados de manera personal al ID.
     return messages.filter(m => m.receiverId === activeUserId);
   }, [messages, activeUserId]);
   
-  // Cantidad de notificaciones no leídas
   const unreadCount = myMessages.filter(m => !m.read).length;
 
   const handleMarkMessagesAsRead = async (msgIds) => {
@@ -456,7 +450,7 @@ export default function App() {
       listingAppointment: 0, listingAppointmentAddress: '', 
       buyerConsultation: 0, buyerConsultationAddress: '', 
       transactionClose: 0, transactionCloseAddress: '', 
-      referralName: '', notes: '' 
+      referralName: '', referralEmail: '', notes: '' 
     };
     const merged = { ...existing, ...updates };
     
@@ -465,7 +459,7 @@ export default function App() {
     const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
     const buyerVal = merged.buyerConsultationAddress?.trim() ? (merged.buyerConsultation || 0) : 0;
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
-    const isReferralFilled = merged.referralName && merged.referralName.trim() !== '';
+    const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralEmail && merged.referralEmail.trim() !== '');
 
     const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
@@ -494,6 +488,7 @@ export default function App() {
       transactionClose: merged.transactionClose || 0,
       transactionCloseAddress: merged.transactionCloseAddress || '',
       referralName: merged.referralName || '',
+      referralEmail: merged.referralEmail || '',
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
@@ -519,7 +514,6 @@ export default function App() {
     const { error } = await supabase.from('users').update(updatedData).eq('id', activeUserId);
     if (error) {
       console.error("Error updating profile:", error);
-      alert("There was an error updating your profile.");
     }
   };
 
@@ -616,7 +610,6 @@ function OnboardingView({ onComplete }) {
     setLoading(true);
     
     const cleanEmail = email.trim().toLowerCase();
-
     const { data: existingUsers } = await supabase.from('users').select('*').eq('email', cleanEmail);
     const existingProfile = existingUsers && existingUsers.length > 0 ? existingUsers[0] : null;
     let targetId = existingProfile ? existingProfile.id : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -663,17 +656,8 @@ function OnboardingView({ onComplete }) {
           
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handleImageUpload} 
-              id="photo-upload" 
-              className="hidden" 
-            />
-            <label 
-              htmlFor="photo-upload" 
-              className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium"
-            >
+            <input type="file" accept="image/*" onChange={handleImageUpload} id="photo-upload" className="hidden" />
+            <label htmlFor="photo-upload" className="flex items-center justify-center gap-2 w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-3 text-slate-600 hover:bg-slate-100 hover:border-slate-400 cursor-pointer transition-all font-medium">
               <Camera size={20} className={photoURL ? "text-amber-500" : "text-slate-400"} />
               <span className="text-sm">{photoURL ? 'Photo uploaded - Click to change' : 'Upload a Profile Photo'}</span>
             </label>
@@ -753,7 +737,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
     openHouse: 0, openHouseAddress: '', networkingEvent: 0, networkingEventName: '', 
     listingAppointment: 0, listingAppointmentAddress: '', buyerConsultation: 0, buyerConsultationAddress: '', 
-    transactionClose: 0, transactionCloseAddress: '', referralName: '', notes: '' 
+    transactionClose: 0, transactionCloseAddress: '', referralName: '', referralEmail: '', notes: '' 
   };
 
   const [localOHAddr, setLocalOHAddr] = useState(data.openHouseAddress || '');
@@ -762,6 +746,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const [localBuyerAddr, setLocalBuyerAddr] = useState(data.buyerConsultationAddress || '');
   const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
   const [localReferral, setLocalReferral] = useState(data.referralName || '');
+  const [localReferralEmail, setLocalReferralEmail] = useState(data.referralEmail || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
   const [copied, setCopied] = useState(false);
 
@@ -772,16 +757,14 @@ function TodayView({ dateStr, log, onSave, profile }) {
     setLocalBuyerAddr(data.buyerConsultationAddress || '');
     setLocalTransAddr(data.transactionCloseAddress || '');
     setLocalReferral(data.referralName || '');
+    setLocalReferralEmail(data.referralEmail || '');
     setLocalNotes(data.notes || '');
   }, [dateStr, data]);
 
   const handleCopy = () => {
     const referralMessage = `${profile?.name || 'User'} has invited you to Agent Coach AI! Join here: https://agentcoachai.com`;
-    
-    // Método seguro para iframes/dispositivos móviles
     const textArea = document.createElement("textarea");
     textArea.value = referralMessage;
-    // Hacerlo invisible
     textArea.style.position = "fixed";
     textArea.style.left = "-999999px";
     textArea.style.top = "-999999px";
@@ -821,7 +804,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const listVal = localListAddr.trim() !== '' ? (data.listingAppointment || 0) : 0;
   const buyerVal = localBuyerAddr.trim() !== '' ? (data.buyerConsultation || 0) : 0;
   const transVal = localTransAddr.trim() !== '' ? (data.transactionClose || 0) : 0;
-  const isReferralFilled = localReferral.trim() !== '';
+  const isReferralFilled = localReferral.trim() !== '' || localReferralEmail.trim() !== '';
 
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
@@ -907,7 +890,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        {/* Referral Text Box */}
+        {/* Referral Section with Email */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
@@ -918,11 +901,18 @@ function TodayView({ dateStr, log, onSave, profile }) {
             </div>
             {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
           </div>
-          <input
-            type="text" placeholder="Enter agent name..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-            value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
-          />
+          <div className="space-y-3">
+            <input
+              type="text" placeholder="Enter agent name..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+              value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
+            />
+            <input
+              type="email" placeholder="Enter agent email address..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+              value={localReferralEmail} onChange={(e) => setLocalReferralEmail(e.target.value)} onBlur={() => onSave({ referralEmail: localReferralEmail })}
+            />
+          </div>
           {isReferralFilled && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
               <p className="text-xs font-bold text-slate-500 mb-2">
@@ -974,7 +964,7 @@ function SummaryView({ logs, todayStr }) {
     listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0), 0),
     buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0), 0),
     transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0), 0),
-    referrals: weeklyLogs.reduce((sum, l) => sum + ((l.referralName && l.referralName.trim() !== '') ? 1 : 0), 0)
+    referrals: weeklyLogs.reduce((sum, l) => sum + (( (l.referralName && l.referralName.trim() !== '') || (l.referralEmail && l.referralEmail.trim() !== '') ) ? 1 : 0), 0)
   };
 
   const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
@@ -987,7 +977,7 @@ function SummaryView({ logs, todayStr }) {
             (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0) + 
             (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0) + 
             (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0) + 
-            ((l.referralName && l.referralName.trim() !== '') ? 1 : 0)) > 0;
+            (((l.referralName && l.referralName.trim() !== '') || (l.referralEmail && l.referralEmail.trim() !== '')) ? 1 : 0)) > 0;
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
@@ -1038,7 +1028,6 @@ function SummaryView({ logs, todayStr }) {
 
 function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
   const [editingLog, setEditingLog] = useState(null);
-  const startOfWeek = getStartOfWeek(todayStr);
   const sortedLogs = [...logs].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (editingLog) {
@@ -1057,9 +1046,7 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
       ) : (
         sortedLogs.map(log => {
           if (isWeekend(log.date) && !log.notes) return null;
-          
           const isToday = log.date === todayStr; 
-          
           const totalItems = (log.conversations || 0) + (log.followUpEmail || 0) + (log.texts || 0) + 
                              (log.socialPosts || 0) + (log.authorityAction || 0) + (log.contactsAdded || 0) + 
                              (log.openHouseAddress?.trim() ? (log.openHouse || 0) : 0) + 
@@ -1067,8 +1054,8 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
                              (log.listingAppointmentAddress?.trim() ? (log.listingAppointment || 0) : 0) + 
                              (log.buyerConsultationAddress?.trim() ? (log.buyerConsultation || 0) : 0) + 
                              (log.transactionCloseAddress?.trim() ? (log.transactionClose || 0) : 0) + 
-                             ((log.referralName && log.referralName.trim() !== '') ? 1 : 0);
-                             
+                             (((log.referralName && log.referralName.trim() !== '') || (log.referralEmail && log.referralEmail.trim() !== '')) ? 1 : 0);
+                               
           const pct = Math.round((totalItems / 30) * 100); 
           const canEdit = isToday && !readOnly;
 
@@ -1089,7 +1076,6 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
 // --- ADMIN / COACH VIEW ---
 function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
   const [selectedProfile, setSelectedProfile] = useState(null);
-  
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [messageTargetType, setMessageTargetType] = useState('team'); 
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -1114,16 +1100,13 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
     setIsSending(true);
-
     const fullMessage = messageText.trim() + '\n\nSincerely, Fernando, your COACH';
-    
-    // MEJORA: Para que a cada persona le llegue una notificación independiente, en vez de un solo mensaje al aire.
     let inserts = [];
     if (messageTargetType === 'team') {
       inserts = directory.map(agent => ({
         id: Math.random().toString(36).substring(2, 15),
         senderId: activeUserId,
-        receiverId: agent.id, // Se lo asignamos individualmente a cada uno
+        receiverId: agent.id, 
         message: fullMessage,
         createdAt: new Date().toISOString(),
         read: false
@@ -1138,20 +1121,10 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
         read: false
       }];
     }
-
     const { error } = await supabase.from('messages').insert(inserts);
-
     setIsSending(false);
     if (!error) {
       setIsMessageModalOpen(false);
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification("Message Sent!", { body: "Your agents will see this in their inbox." });
-      } else {
-        alert("Message sent successfully!");
-      }
-    } else {
-      console.error("Error sending msg", error);
-      alert("Error sending message.");
     }
   };
 
@@ -1209,7 +1182,6 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
             <button onClick={() => setIsMessageModalOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-400 hover:text-slate-700 rounded-full transition-colors"><X size={20} /></button>
             <h2 className="text-xl font-black text-slate-900 mb-1">{messageTargetType === 'team' ? 'Broadcast to Team' : 'Message Agent'}</h2>
             <p className="text-slate-500 text-sm font-medium mb-6">Send an in-app notification instantly.</p>
-
             {messageTargetType === 'agent' && (
               <div className="mb-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Select Agent</label>
@@ -1220,16 +1192,10 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
                 </select>
               </div>
             )}
-
             <div className="mb-6">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Message</label>
               <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-400 transition-all resize-none" placeholder="Type your message here..." rows={4} value={messageText} onChange={(e) => setMessageText(e.target.value)} />
-              <div className="mt-3 p-3 bg-slate-100 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Preview Signature:</p>
-                <p className="text-sm font-medium text-slate-700 italic">...<br/><br/>Sincerely, Fernando, your COACH</p>
-              </div>
             </div>
-
             <button onClick={handleSendMessage} disabled={isSending || !messageText.trim()} className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
               {isSending ? 'Sending...' : <><Send size={18} /> Send Message</>}
             </button>
