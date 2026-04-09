@@ -526,7 +526,11 @@ export default function App() {
     });
 
     const { error } = await supabase.from('daily_logs').upsert(newLogRecord);
-    if (error) console.error("Error saving log:", error);
+    // ALERTA AÑADIDA: Para ayudar a identificar el error en las columnas de la Base de Datos
+    if (error) {
+      console.error("Error saving log:", error);
+      alert(`Error guardando en Supabase: ${error.message}\n\nAsegúrate de que las columnas 'referralName', 'referralEmail' y 'referralStatus' existan en la tabla 'daily_logs' respetando EXACTAMENTE las mayúsculas (Case Sensitive).`);
+    }
   };
 
   const handleUpdateProfile = async (updatedData) => {
@@ -965,15 +969,20 @@ function TodayView({ dateStr, log, onSave, profile }) {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* AÑADIDO: onBlur para que no se borre al hacer clic en otro lado accidentalmente */}
               <input
                 type="text" placeholder="Enter agent name..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-                value={localRefName} onChange={(e) => setLocalRefName(e.target.value)}
+                value={localRefName} 
+                onChange={(e) => setLocalRefName(e.target.value)}
+                onBlur={() => onSave({ referralName: localRefName })}
               />
               <input
                 type="email" placeholder="Enter agent email address..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-                value={localRefEmail} onChange={(e) => setLocalRefEmail(e.target.value)}
+                value={localRefEmail} 
+                onChange={(e) => setLocalRefEmail(e.target.value)}
+                onBlur={() => onSave({ referralEmail: localRefEmail })}
               />
               
               {localRefName.trim() && localRefEmail.trim() && (
