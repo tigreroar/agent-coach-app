@@ -26,7 +26,8 @@ import {
   FileText,
   DollarSign,
   Gift,
-  BookOpen
+  BookOpen,
+  Copy
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -72,6 +73,17 @@ const getDaysAgoStr = (days) => {
 
 const generateAvatar = (name) => {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'Agent')}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
+};
+
+// Copy function compatible with iframes
+const copyToClipboard = (text) => {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try { document.execCommand('copy'); } catch (err) {}
+  document.body.removeChild(textArea);
 };
 
 // --- COMPONENTS ---
@@ -122,7 +134,6 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
               className="relative p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
             >
               <BellRing size={20} />
-              {/* Notificación: Círculo rojo con el número de mensajes no leídos */}
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-slate-900">
                   {unreadCount}
@@ -430,11 +441,9 @@ export default function App() {
   const myLogs = useMemo(() => logs.filter(l => l.userId === activeUserId), [logs, activeUserId]);
   
   const myMessages = useMemo(() => {
-    // Ya no usamos receiverId === null. Ahora todos los mensajes son enviados de manera personal al ID.
     return messages.filter(m => m.receiverId === activeUserId);
   }, [messages, activeUserId]);
   
-  // Cantidad de notificaciones no leídas
   const unreadCount = myMessages.filter(m => !m.read).length;
 
   const handleMarkMessagesAsRead = async (msgIds) => {
@@ -455,7 +464,7 @@ export default function App() {
       listingAppointment: 0, listingAppointmentAddress: '', 
       buyerConsultation: 0, buyerConsultationAddress: '', 
       transactionClose: 0, transactionCloseAddress: '', 
-      referralName: '', notes: '' 
+      referralName: '', referralEmail: '', referralStatus: 'pending', notes: '' 
     };
     const merged = { ...existing, ...updates };
     
@@ -464,17 +473,20 @@ export default function App() {
     const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
     const buyerVal = merged.buyerConsultationAddress?.trim() ? (merged.buyerConsultation || 0) : 0;
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
-    const isReferralFilled = merged.referralName && merged.referralName.trim() !== '';
 
     const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
-    const referralPts = isReferralFilled ? 20 : 0;
+    
+    // REGLA: Los 20 puntos se otorgan ÚNICAMENTE si el status del referido es "registered"
+    const isReferralRegistered = merged.referralStatus === 'registered';
+    const referralPts = isReferralRegistered ? 20 : 0;
     
     const score = basePts + specialPts + referralPts;
 
     const newLogRecord = {
       id: logId, 
       userId: activeUserId, 
+      userName: profile?.name || 'Agent',
       date: date,
       conversations: merged.conversations || 0, 
       followUpEmail: merged.followUpEmail || 0, 
@@ -493,6 +505,8 @@ export default function App() {
       transactionClose: merged.transactionClose || 0,
       transactionCloseAddress: merged.transactionCloseAddress || '',
       referralName: merged.referralName || '',
+      referralEmail: (merged.referralEmail || '').toLowerCase(),
+      referralStatus: merged.referralStatus || 'pending',
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
@@ -624,12 +638,32 @@ function OnboardingView({ onComplete }) {
       const role = name.toLowerCase().includes('admin') ? 'admin' : 'agent';
       const finalPhotoURL = photoURL.trim() || generateAvatar(name);
       
+      // Creamos el nuevo usuario
       await supabase.from('users').insert([{
         id: targetId, name: name.trim(), email: cleanEmail, phone: phone.trim(), 
         role: role, photoURL: finalPhotoURL, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, 
         createdAt: new Date().toISOString(), fcmToken: null
       }]);
+
+      // MAGIA DE REFERIDOS: Buscamos si este nuevo usuario fue invitado por alguien (su correo en un log pendiente)
+      const { data: referredLogs } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('referralEmail', cleanEmail)
+        .eq('referralStatus', 'pending');
+
+      if (referredLogs && referredLogs.length > 0) {
+        // Por cada invitación pendiente que coincida, le damos los puntos al agente
+        for (const rLog of referredLogs) {
+          const newScore = (rLog.score || 0) + 20; // ¡Damos los 20 Puntos Mágicos!
+          await supabase
+            .from('daily_logs')
+            .update({ referralStatus: 'registered', score: newScore })
+            .eq('id', rLog.id);
+        }
+      }
     }
+    
     setLoading(false);
     onComplete(targetId); 
   };
@@ -752,7 +786,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
     openHouse: 0, openHouseAddress: '', networkingEvent: 0, networkingEventName: '', 
     listingAppointment: 0, listingAppointmentAddress: '', buyerConsultation: 0, buyerConsultationAddress: '', 
-    transactionClose: 0, transactionCloseAddress: '', referralName: '', notes: '' 
+    transactionClose: 0, transactionCloseAddress: '', referralName: '', referralEmail: '', referralStatus: 'pending', notes: '' 
   };
 
   const [localOHAddr, setLocalOHAddr] = useState(data.openHouseAddress || '');
@@ -760,7 +794,11 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const [localListAddr, setLocalListAddr] = useState(data.listingAppointmentAddress || '');
   const [localBuyerAddr, setLocalBuyerAddr] = useState(data.buyerConsultationAddress || '');
   const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
-  const [localReferral, setLocalReferral] = useState(data.referralName || '');
+  
+  const [localRefName, setLocalRefName] = useState(data.referralName || '');
+  const [localRefEmail, setLocalRefEmail] = useState(data.referralEmail || '');
+  const [copied, setCopied] = useState(false);
+
   const [localNotes, setLocalNotes] = useState(data.notes || '');
 
   useEffect(() => {
@@ -769,7 +807,8 @@ function TodayView({ dateStr, log, onSave, profile }) {
     setLocalListAddr(data.listingAppointmentAddress || '');
     setLocalBuyerAddr(data.buyerConsultationAddress || '');
     setLocalTransAddr(data.transactionCloseAddress || '');
-    setLocalReferral(data.referralName || '');
+    setLocalRefName(data.referralName || '');
+    setLocalRefEmail(data.referralEmail || '');
     setLocalNotes(data.notes || '');
   }, [dateStr, data]);
 
@@ -796,7 +835,9 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const listVal = localListAddr.trim() !== '' ? (data.listingAppointment || 0) : 0;
   const buyerVal = localBuyerAddr.trim() !== '' ? (data.buyerConsultation || 0) : 0;
   const transVal = localTransAddr.trim() !== '' ? (data.transactionClose || 0) : 0;
-  const isReferralFilled = localReferral.trim() !== '';
+  
+  // En las métricas diarias (items out of 30) contamos la actividad de enviar la invitación aunque esté pendiente.
+  const isReferralFilled = localRefName.trim() !== '' && localRefEmail.trim() !== '';
 
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
@@ -821,6 +862,15 @@ function TodayView({ dateStr, log, onSave, profile }) {
         />
       </div>
     );
+  };
+
+  const isReferralRegistered = data.referralStatus === 'registered';
+  const inviteMessage = `${profile?.name || 'A user'} has invited you to use Agent Coach AI! Join here: https://agentcoachai.com`;
+
+  const handleCopyInvite = () => {
+    copyToClipboard(inviteMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -882,22 +932,53 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        {/* Referral Text Box */}
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
+        {/* NEW REFERRAL LOGIC */}
+        <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralRegistered ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+              <div className={`p-2.5 rounded-xl transition-colors ${isReferralRegistered ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                 <Gift size={20} strokeWidth={2.5} />
               </div>
-              <span className="font-semibold text-slate-800 text-base">Invite An Agent (20 Pts)</span>
+              <span className="font-semibold text-slate-800 text-base">Invite An Agent</span>
             </div>
-            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
+            {isReferralRegistered ? (
+              <span className="text-sm font-bold text-amber-500">+20 Pts Unlocked!</span>
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending (0/20 Pts)</span>
+            )}
           </div>
-          <input
-            type="text" placeholder="Enter agent name..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-            value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
-          />
+
+          {!isReferralRegistered ? (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500 font-medium mb-1">Fill info to get your invite code. Points added when they register!</p>
+              <input
+                type="text" placeholder="Agent Name"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+                value={localRefName} onChange={(e) => setLocalRefName(e.target.value)} onBlur={() => onSave({ referralName: localRefName, referralEmail: localRefEmail })}
+              />
+              <input
+                type="email" placeholder="Agent Email Address"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
+                value={localRefEmail} onChange={(e) => setLocalRefEmail(e.target.value)} onBlur={() => onSave({ referralName: localRefName, referralEmail: localRefEmail })}
+              />
+
+              {isReferralFilled && (
+                <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in duration-300">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><InfoIcon /> Send this by SMS or Email:</p>
+                  <p className="text-sm text-slate-700 italic font-medium mb-4 select-all">"{inviteMessage}"</p>
+                  <button onClick={handleCopyInvite} className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2 ${copied ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                    {copied ? <><CheckCircle2 size={16} /> Copied to Clipboard!</> : <><Copy size={16} /> Copy Message</>}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-2 bg-white p-4 border border-amber-200 rounded-xl">
+              <p className="text-sm font-medium text-slate-700">
+                🎉 Awesome! <strong>{data.referralName}</strong> has joined the app. Your 20 points have been successfully added to your ranking.
+              </p>
+            </div>
+          )}
         </div>
 
       </div>
@@ -913,6 +994,10 @@ function TodayView({ dateStr, log, onSave, profile }) {
     </div>
   );
 }
+
+const InfoIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+);
 
 function SummaryView({ logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
@@ -1073,13 +1158,12 @@ function AdminView({ logs, profiles, todayStr, activeUserId, supabase }) {
 
     const fullMessage = messageText.trim() + '\n\nSincerely, Fernando, your COACH';
     
-    // MEJORA: Para que a cada persona le llegue una notificación independiente, en vez de un solo mensaje al aire.
     let inserts = [];
     if (messageTargetType === 'team') {
       inserts = directory.map(agent => ({
         id: Math.random().toString(36).substring(2, 15),
         senderId: activeUserId,
-        receiverId: agent.id, // Se lo asignamos individualmente a cada uno
+        receiverId: agent.id, 
         message: fullMessage,
         createdAt: new Date().toISOString(),
         read: false
