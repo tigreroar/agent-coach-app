@@ -461,11 +461,12 @@ export default function App() {
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
     const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralEmail && merged.referralEmail.trim() !== '');
 
-    const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.authorityAction || 0) + (merged.contactsAdded || 0);
+    const basePts = (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
+    const fivePts = ((merged.conversations || 0) * 5) + ((merged.authorityAction || 0) * 5);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
-    const referralPts = isReferralFilled ? 20 : 0;
+    const referralPts = isReferralFilled ? 10 : 0;
     
-    const score = basePts + specialPts + referralPts;
+    const score = basePts + fivePts + specialPts + referralPts;
 
     const newLogRecord = {
       id: logId, 
@@ -676,7 +677,7 @@ function OnboardingView({ onComplete }) {
 
 function RankingView({ profiles, logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 835; 
+  const maxWeeklyPoints = 710; 
   
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
@@ -842,15 +843,22 @@ function TodayView({ dateStr, log, onSave, profile }) {
       <div className="space-y-4">
         <div className="py-2 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
-          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (1 Point Each)</span>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINT EACH)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
         <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
+        <CounterCard icon={UserPlus} title="Prepare your 5 conversations for tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
+
+        <div className="py-4 flex items-center gap-4">
+          <div className="h-px bg-slate-200 flex-1"></div>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (1 Point Each)</span>
+          <div className="h-px bg-slate-200 flex-1"></div>
+        </div>
+
         <CounterCard icon={Mail} title="Follow-Up Email" max={4} value={data.followUpEmail || 0} onChange={(v) => onSave({ followUpEmail: v })} />
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
-        <CounterCard icon={UserPlus} title="Authority Action" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
         <CounterCard icon={BookOpen} title="Contacts Added to CRM" max={3} value={data.contactsAdded || 0} onChange={(v) => onSave({ contactsAdded: v })} />
         
         <div className="py-4 flex items-center gap-4">
@@ -897,9 +905,9 @@ function TodayView({ dateStr, log, onSave, profile }) {
               <div className={`p-2.5 rounded-xl transition-colors ${isReferralFilled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                 <Gift size={20} strokeWidth={2.5} />
               </div>
-              <span className="font-semibold text-slate-800 text-base">Invite An Agent (20 Pts)</span>
+              <span className="font-semibold text-slate-800 text-base">Invite An Agent (10 Pts)</span>
             </div>
-            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+20 Pts</span>}
+            {isReferralFilled && <span className="text-sm font-bold text-amber-500">+10 Pts</span>}
           </div>
           <div className="space-y-3">
             <input
@@ -968,6 +976,7 @@ function SummaryView({ logs, todayStr }) {
   };
 
   const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
+  const weeklyScore = weeklyLogs.reduce((sum, l) => sum + (l.score || 0), 0);
   
   const daysLogged = weeklyLogs.filter(l => {
     return ((l.conversations || 0) + (l.followUpEmail || 0) + (l.texts || 0) + (l.socialPosts || 0) + 
@@ -981,14 +990,15 @@ function SummaryView({ logs, todayStr }) {
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossible = daysPassed * 30; 
-  const weeklyPercent = maxPossible > 0 ? Math.round((totalItems / maxPossible) * 100) : 0;
+  const maxPossiblePoints = daysPassed * 142; 
+  const weeklyPercent = maxPossiblePoints > 0 ? Math.round((weeklyScore / maxPossiblePoints) * 100) : 0;
+  const dailyAvg = daysLogged > 0 ? Math.round(weeklyScore / daysLogged) : 0;
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Activities Completed</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{totalItems}<span className="text-2xl text-slate-300">/150</span></div>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Daily Average Score</h2>
+        <div className="text-6xl font-black text-slate-900 mb-3">{dailyAvg}<span className="text-2xl text-slate-300">/142</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
