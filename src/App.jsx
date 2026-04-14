@@ -860,7 +860,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
-        <CounterCard icon={UserPlus} title="Prepare your 5 conversations for tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
+        <CounterCard icon={UserPlus} title="Prepare Your 5 Conversations For Tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
 
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
