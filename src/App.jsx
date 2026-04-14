@@ -461,8 +461,9 @@ export default function App() {
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
     const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralEmail && merged.referralEmail.trim() !== '');
 
-    const basePts = (merged.conversations || 0) + (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
-    const fivePts = ((merged.authorityAction || 0) * 5);
+    // CAMBIO APLICADO AQUÍ: Las conversaciones ya no valen 1 punto en basePts, sino que se multiplican por 5.
+    const basePts = (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
+    const fivePts = ((merged.conversations || 0) * 5) + ((merged.authorityAction || 0) * 5);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
     const referralPts = isReferralFilled ? 10 : 0;
     
