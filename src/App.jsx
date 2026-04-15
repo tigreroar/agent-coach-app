@@ -453,7 +453,7 @@ export default function App() {
       listingAppointment: 0, listingAppointmentAddress: '', 
       buyerConsultation: 0, buyerConsultationAddress: '', 
       transactionClose: 0, transactionCloseAddress: '', 
-      referralName: '', referralEmail: '', notes: '' 
+      referralName: '', referralPhone: '', notes: '' 
     };
     const merged = { ...existing, ...updates };
     
@@ -462,7 +462,7 @@ export default function App() {
     const listVal = merged.listingAppointmentAddress?.trim() ? (merged.listingAppointment || 0) : 0;
     const buyerVal = merged.buyerConsultationAddress?.trim() ? (merged.buyerConsultation || 0) : 0;
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
-    const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralEmail && merged.referralEmail.trim() !== '');
+    const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralPhone && merged.referralPhone.trim() !== '');
 
     // CAMBIO APLICADO AQUÍ: Las conversaciones ya no valen 1 punto en basePts, sino que se multiplican por 5.
     const basePts = (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
@@ -493,7 +493,7 @@ export default function App() {
       transactionClose: merged.transactionClose || 0,
       transactionCloseAddress: merged.transactionCloseAddress || '',
       referralName: merged.referralName || '',
-      referralEmail: merged.referralEmail || '',
+      referralPhone: merged.referralPhone || '',
       notes: merged.notes || '', 
       score: score, 
       updatedAt: new Date().toISOString()
@@ -742,7 +742,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     conversations: 0, followUpEmail: 0, texts: 0, socialPosts: 0, authorityAction: 0, contactsAdded: 0, 
     openHouse: 0, openHouseAddress: '', networkingEvent: 0, networkingEventName: '', 
     listingAppointment: 0, listingAppointmentAddress: '', buyerConsultation: 0, buyerConsultationAddress: '', 
-    transactionClose: 0, transactionCloseAddress: '', referralName: '', referralEmail: '', notes: '' 
+    transactionClose: 0, transactionCloseAddress: '', referralName: '', referralPhone: '', notes: '' 
   };
 
   const [localOHAddr, setLocalOHAddr] = useState(data.openHouseAddress || '');
@@ -751,7 +751,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const [localBuyerAddr, setLocalBuyerAddr] = useState(data.buyerConsultationAddress || '');
   const [localTransAddr, setLocalTransAddr] = useState(data.transactionCloseAddress || '');
   const [localReferral, setLocalReferral] = useState(data.referralName || '');
-  const [localReferralEmail, setLocalReferralEmail] = useState(data.referralEmail || '');
+  const [localReferralPhone, setLocalReferralPhone] = useState(data.referralPhone || '');
   const [localNotes, setLocalNotes] = useState(data.notes || '');
   const [copied, setCopied] = useState(false);
 
@@ -762,7 +762,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
     setLocalBuyerAddr(data.buyerConsultationAddress || '');
     setLocalTransAddr(data.transactionCloseAddress || '');
     setLocalReferral(data.referralName || '');
-    setLocalReferralEmail(data.referralEmail || '');
+    setLocalReferralPhone(data.referralPhone || '');
     setLocalNotes(data.notes || '');
   }, [dateStr, data]);
 
@@ -809,7 +809,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   const listVal = localListAddr.trim() !== '' ? (data.listingAppointment || 0) : 0;
   const buyerVal = localBuyerAddr.trim() !== '' ? (data.buyerConsultation || 0) : 0;
   const transVal = localTransAddr.trim() !== '' ? (data.transactionClose || 0) : 0;
-  const isReferralFilled = localReferral.trim() !== '' || localReferralEmail.trim() !== '';
+  const isReferralFilled = localReferral.trim() !== '' || localReferralPhone.trim() !== '';
 
   const totalItems = (data.conversations || 0) + (data.followUpEmail || 0) + (data.texts || 0) + 
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
@@ -851,7 +851,6 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
-        <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
         <CounterCard icon={Mail} title="Follow-Up Email" max={4} value={data.followUpEmail || 0} onChange={(v) => onSave({ followUpEmail: v })} />
         <CounterCard icon={MessageSquare} title="Texts" max={3} value={data.texts || 0} onChange={(v) => onSave({ texts: v })} />
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
@@ -863,6 +862,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
+        <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
         <CounterCard icon={UserPlus} title="Prepare Your 5 Conversations For Tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
 
         <div className="py-4 flex items-center gap-4">
@@ -902,7 +902,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
         
-        {/* Referral Section with Email */}
+        {/* Referral Section with Phone */}
         <div className={`bg-white rounded-2xl p-5 shadow-sm border transition-all duration-300 ${isReferralFilled ? 'border-amber-400 bg-amber-50/10' : 'border-slate-200'}`}>
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
@@ -920,9 +920,9 @@ function TodayView({ dateStr, log, onSave, profile }) {
               value={localReferral} onChange={(e) => setLocalReferral(e.target.value)} onBlur={() => onSave({ referralName: localReferral })}
             />
             <input
-              type="email" placeholder="Enter agent email address..."
+              type="tel" placeholder="Enter agent phone number..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all font-medium"
-              value={localReferralEmail} onChange={(e) => setLocalReferralEmail(e.target.value)} onBlur={() => onSave({ referralEmail: localReferralEmail })}
+              value={localReferralPhone} onChange={(e) => setLocalReferralPhone(e.target.value)} onBlur={() => onSave({ referralPhone: localReferralPhone })}
             />
           </div>
           {isReferralFilled && (
@@ -976,7 +976,7 @@ function SummaryView({ logs, todayStr }) {
     listingAppointment: weeklyLogs.reduce((sum, l) => sum + (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0), 0),
     buyerConsultation: weeklyLogs.reduce((sum, l) => sum + (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0), 0),
     transactionClose: weeklyLogs.reduce((sum, l) => sum + (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0), 0),
-    referrals: weeklyLogs.reduce((sum, l) => sum + (( (l.referralName && l.referralName.trim() !== '') || (l.referralEmail && l.referralEmail.trim() !== '') ) ? 1 : 0), 0)
+    referrals: weeklyLogs.reduce((sum, l) => sum + (( (l.referralName && l.referralName.trim() !== '') || (l.referralPhone && l.referralPhone.trim() !== '') ) ? 1 : 0), 0)
   };
 
   const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
@@ -990,7 +990,7 @@ function SummaryView({ logs, todayStr }) {
             (l.listingAppointmentAddress?.trim() ? (l.listingAppointment || 0) : 0) + 
             (l.buyerConsultationAddress?.trim() ? (l.buyerConsultation || 0) : 0) + 
             (l.transactionCloseAddress?.trim() ? (l.transactionClose || 0) : 0) + 
-            (((l.referralName && l.referralName.trim() !== '') || (l.referralEmail && l.referralEmail.trim() !== '')) ? 1 : 0)) > 0;
+            (((l.referralName && l.referralName.trim() !== '') || (l.referralPhone && l.referralPhone.trim() !== '')) ? 1 : 0)) > 0;
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
@@ -1068,7 +1068,7 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
                              (log.listingAppointmentAddress?.trim() ? (log.listingAppointment || 0) : 0) + 
                              (log.buyerConsultationAddress?.trim() ? (log.buyerConsultation || 0) : 0) + 
                              (log.transactionCloseAddress?.trim() ? (log.transactionClose || 0) : 0) + 
-                             (((log.referralName && log.referralName.trim() !== '') || (log.referralEmail && log.referralEmail.trim() !== '')) ? 1 : 0);
+                             (((log.referralName && log.referralName.trim() !== '') || (log.referralPhone && log.referralPhone.trim() !== '')) ? 1 : 0);
                                
           const pct = Math.round((totalItems / 30) * 100); 
           const canEdit = isToday && !readOnly;
