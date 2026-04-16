@@ -845,7 +845,18 @@ function TodayView({ dateStr, log, onSave, profile }) {
       </div>
       
       <div className="space-y-4">
+        
+        {/* NEW SECTION FOR CONVERSATIONS */}
         <div className="py-2 flex items-center gap-4">
+          <div className="h-px bg-slate-200 flex-1"></div>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINTS EACH)</span>
+          <div className="h-px bg-slate-200 flex-1"></div>
+        </div>
+
+        <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
+
+        {/* EXISTING 1 POINT SECTION */}
+        <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (1 Point Each)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
@@ -856,13 +867,13 @@ function TodayView({ dateStr, log, onSave, profile }) {
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
         <CounterCard icon={BookOpen} title="Contacts Added to CRM" max={3} value={data.contactsAdded || 0} onChange={(v) => onSave({ contactsAdded: v })} />
         
+        {/* UPDATED 5 POINT EA SECTION */}
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
-          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINT EACH)</span>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINTS EA)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
-        <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
         <CounterCard icon={UserPlus} title="Prepare Your 5 Conversations For Tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
 
         <div className="py-4 flex items-center gap-4">
