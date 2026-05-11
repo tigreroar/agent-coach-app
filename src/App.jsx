@@ -681,7 +681,7 @@ function OnboardingView({ onComplete }) {
 
 function RankingView({ profiles, logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 710; 
+  const maxWeeklyPoints = 730; 
   
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
@@ -815,7 +815,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
                      (data.socialPosts || 0) + (data.authorityAction || 0) + (data.contactsAdded || 0) + 
                      ohVal + netVal + listVal + buyerVal + transVal + (isReferralFilled ? 1 : 0);
                      
-  const percent = Math.round((totalItems / 30) * 100);
+  const percent = Math.round((totalItems / 33) * 100);
 
   const renderConditionalInput = (condition, placeholder, val, setVal, fieldKey) => {
     if (!condition) return null;
@@ -839,7 +839,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-4">
       <div className="bg-slate-900 rounded-3xl p-6 shadow-lg border border-slate-800">
-        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalItems}<span className="text-lg text-slate-500 font-bold">/30</span></p></div></div>
+        <div className="flex justify-between items-end mb-3"><div><h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Daily Goal</h2><p className="text-3xl font-black text-white">{percent}%</p></div><div className="text-right"><p className="text-3xl font-black text-amber-400">{totalItems}<span className="text-lg text-slate-500 font-bold">/33</span></p></div></div>
         <div className="w-full bg-slate-800/50 rounded-full h-3 mt-4 overflow-hidden shadow-inner"><div className="bg-gradient-to-r from-amber-500 to-amber-400 h-3 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.min(percent, 100)}%` }}></div></div>
         {percent >= 100 && <p className="text-amber-400 text-sm font-bold mt-4 flex items-center gap-1.5"><CheckCircle2 size={18} /> Incredible! You crushed it today.</p>}
       </div>
@@ -870,11 +870,11 @@ function TodayView({ dateStr, log, onSave, profile }) {
         {/* UPDATED 5 POINT EA SECTION */}
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
-          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINTS EA)</span>
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (25 POINTS EA/ APPT)</span>
           <div className="h-px bg-slate-200 flex-1"></div>
         </div>
 
-        <CounterCard icon={UserPlus} title="Prepare Your 5 Conversations For Tomorrow" max={1} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
+        <CounterCard icon={UserPlus} title="Appointments Today" max={5} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
 
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
@@ -1005,7 +1005,7 @@ function SummaryView({ logs, todayStr }) {
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossiblePoints = daysPassed * 142; 
+  const maxPossiblePoints = daysPassed * 152; 
   const weeklyPercent = maxPossiblePoints > 0 ? Math.round((weeklyScore / maxPossiblePoints) * 100) : 0;
   const dailyAvg = daysLogged > 0 ? Math.round(weeklyScore / daysLogged) : 0;
 
@@ -1013,7 +1013,7 @@ function SummaryView({ logs, todayStr }) {
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Daily Average Score</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{dailyAvg}<span className="text-2xl text-slate-300">/142</span></div>
+        <div className="text-6xl font-black text-slate-900 mb-3">{dailyAvg}<span className="text-2xl text-slate-300">/152</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -1028,7 +1028,7 @@ function SummaryView({ logs, todayStr }) {
             { label: 'Follow-Up Email', icon: Mail, total: totals.followUpEmail, max: 20 }, 
             { label: 'Texts', icon: MessageSquare, total: totals.texts, max: 15 }, 
             { label: 'Social Posts', icon: Share2, total: totals.socialPosts, max: 10 }, 
-            { label: 'Authority Action', icon: UserPlus, total: totals.authorityAction, max: 5 },
+            { label: 'Appointments Today', icon: UserPlus, total: totals.authorityAction, max: 25 },
             { label: 'Contacts Added to CRM', icon: BookOpen, total: totals.contactsAdded, max: 15 },
             { label: 'Open House', icon: Home, total: totals.openHouse, max: 5 },
             { label: 'Networking', icon: Briefcase, total: totals.networkingEvent, max: 5 },
@@ -1081,12 +1081,12 @@ function HistoryView({ logs, onSaveLog, todayStr, readOnly = false }) {
                              (log.transactionCloseAddress?.trim() ? (log.transactionClose || 0) : 0) + 
                              (((log.referralName && log.referralName.trim() !== '') || (log.referralPhone && log.referralPhone.trim() !== '')) ? 1 : 0);
                                
-          const pct = Math.round((totalItems / 30) * 100); 
+          const pct = Math.round((totalItems / 33) * 100); 
           const canEdit = isToday && !readOnly;
 
           return (
             <div key={log.date} className={`bg-white p-5 rounded-2xl border shadow-sm ${canEdit ? 'border-slate-200 hover:border-amber-400 cursor-pointer transition-all' : 'border-slate-100 opacity-80'}`} onClick={() => canEdit ? setEditingLog(log) : null}>
-              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{totalItems}/30</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="font-bold text-slate-800 capitalize">{new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span><span className={`text-sm font-black ${pct >= 100 ? 'text-amber-500' : 'text-slate-400'}`}>{totalItems}/33</span></div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }}></div></div>
               {log.notes && <p className="text-xs text-slate-500 font-medium italic bg-slate-50 p-3 rounded-xl border border-slate-100 line-clamp-2">"{log.notes}"</p>}
               {canEdit && <p className="text-[10px] text-amber-600/70 mt-3 uppercase tracking-wider font-bold">Tap to edit</p>}
