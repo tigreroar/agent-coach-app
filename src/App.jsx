@@ -464,13 +464,14 @@ export default function App() {
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
     const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralPhone && merged.referralPhone.trim() !== '');
 
-    // CAMBIO APLICADO AQUÍ: Las conversaciones ya no valen 1 punto en basePts, sino que se multiplican por 5.
+    // CÁLCULO DE PUNTOS ACTUALIZADO
     const basePts = (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
-    const fivePts = ((merged.conversations || 0) * 5) + ((merged.authorityAction || 0) * 5);
+    const fivePts = ((merged.conversations || 0) * 5);
+    const twentyFivePts = ((merged.authorityAction || 0) * 25);
     const specialPts = (ohVal * 10) + (netVal * 10) + (listVal * 10) + (buyerVal * 10) + (transVal * 10);
     const referralPts = isReferralFilled ? 10 : 0;
     
-    const score = basePts + fivePts + specialPts + referralPts;
+    const score = basePts + fivePts + twentyFivePts + specialPts + referralPts;
 
     const newLogRecord = {
       id: logId, 
@@ -681,7 +682,7 @@ function OnboardingView({ onComplete }) {
 
 function RankingView({ profiles, logs, todayStr }) {
   const startOfWeek = getStartOfWeek(todayStr);
-  const maxWeeklyPoints = 730; 
+  const maxWeeklyPoints = 830; 
   
   const leaderboard = profiles.map(profile => {
     const userLogs = logs.filter(l => l.userId === profile.id && l.date >= startOfWeek && l.date <= todayStr && !isWeekend(l.date));
@@ -1005,7 +1006,7 @@ function SummaryView({ logs, todayStr }) {
   }).length;
   
   const d = new Date(todayStr + 'T00:00:00'); const dayOfWeek = d.getDay(); let daysPassed = dayOfWeek === 0 || dayOfWeek === 6 ? 5 : dayOfWeek; 
-  const maxPossiblePoints = daysPassed * 152; 
+  const maxPossiblePoints = daysPassed * 252; 
   const weeklyPercent = maxPossiblePoints > 0 ? Math.round((weeklyScore / maxPossiblePoints) * 100) : 0;
   const dailyAvg = daysLogged > 0 ? Math.round(weeklyScore / daysLogged) : 0;
 
@@ -1013,7 +1014,7 @@ function SummaryView({ logs, todayStr }) {
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Daily Average Score</h2>
-        <div className="text-6xl font-black text-slate-900 mb-3">{dailyAvg}<span className="text-2xl text-slate-300">/152</span></div>
+        <div className="text-6xl font-black text-slate-900 mb-3">{dailyAvg}<span className="text-2xl text-slate-300">/252</span></div>
         <p className="font-semibold text-slate-600 px-2 text-sm">{weeklyPercent >= 80 ? "You're on a roll! Keep the momentum." : weeklyPercent >= 50 ? "Good effort. Let's push a little more." : "Every day is a new opportunity. You got this!"}</p>
       </div>
       <div className="grid grid-cols-2 gap-4">
