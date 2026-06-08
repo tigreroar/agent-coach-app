@@ -27,7 +27,8 @@ import {
   DollarSign,
   Gift,
   BookOpen,
-  Copy
+  Copy,
+  Trash2
 } from 'lucide-react';
 
 // --- SUPABASE INITIALIZATION ---
@@ -159,6 +160,7 @@ const Header = ({ title, onLogout, profile, unreadCount, onOpenInbox, onOpenProf
 const BottomNav = ({ activeTab, setActiveTab, isAdmin }) => {
   const tabs = [
     { id: 'today', icon: CheckCircle2, label: 'Today' },
+    { id: 'leads', icon: BookOpen, label: 'Leads' },
     { id: 'history', icon: History, label: 'History' },
     { id: 'summary', icon: TrendingUp, label: 'Summary' },
     { id: 'ranking', icon: Award, label: 'Ranking' },
@@ -351,6 +353,265 @@ function InboxModal({ messages, onClose, onMarkAsRead }) {
   );
 }
 
+// --- NEW TAB: LEADS VIEW ---
+const LeadsView = ({ log, onSave, activeUserId, profile }) => {
+  const [leads, setLeads] = useState(() => {
+    const saved = localStorage.getItem(`agentCoach_leads_${activeUserId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const saved = localStorage.getItem(`agentCoach_leadIndex_${activeUserId}`);
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  
+  // States for Email and SMS Template Selection
+  const [selectedSmsCategory, setSelectedSmsCategory] = useState('Database');
+  const [selectedSmsTpl, setSelectedSmsTpl] = useState(0);
+  const [selectedEmailTpl, setSelectedEmailTpl] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem(`agentCoach_leads_${activeUserId}`, JSON.stringify(leads));
+    localStorage.setItem(`agentCoach_leadIndex_${activeUserId}`, currentIndex.toString());
+  }, [leads, currentIndex, activeUserId]);
+
+  // Data for SMS
+  const smsCategories = {
+    Database: [
+      "Hi [Name], it's been a while since we've connected. How have you and the family been? What's new in your world?",
+      "Hi [Name], quick question: if you could change one thing about your home right now; without worrying about cost...what would it be?",
+      "Hi [Name], random question: If I could show you a way to build wealth through real estate without moving, would you be curious?"
+    ],
+    Spanish: [
+      "Hola [Nombre], pregunta rápida: si encontraras una casa que te encantara y el pago mensual fuera cómodo para tu presupuesto, ¿considerarías comprar este año?",
+      "Hola [Nombre], hace tiempo que no hablamos. ¿Qué es algo bueno o emocionante que te haya pasado este año?",
+      "Hola [Nombre], tengo curiosidad: si decidieras comprar una casa en los próximos 12 meses, ¿qué crees que sería tu mayor preocupación: el pago inicial, la mensualidad o encontrar la casa adecuada?"
+    ],
+    Sellers: [
+      "Hi [Name], if someone knocked on your door today and offered top dollar for your home, would you sell it or stay put?",
+      "Hi [Name], what do you think would need to happen for you to consider selling your home in the next 1-3 years?",
+      "Hi [Name], have you checked your home's value recently? Many homeowners are surprised by how much equity they've built over the last few years."
+    ]
+  };
+
+  // Data for Email
+  const emailTemplates = [
+    {
+      subject: "Curious what you'd do...",
+      body: "Hi [Name],\n\nI was having a conversation today and it made me think of a question:\n\nIf someone offered you 20% more than you paid for your home, would you sell it?\nWhy or why not?\n\nJust hit reply. I'm curious to see how people think about it.\n\n– [Agent Name]"
+    },
+    {
+      subject: "Need your advice",
+      body: "Hi [Name],\n\nI need your opinion on something.\n\nA friend asked me:\n\"What's the biggest mistake people make when buying a home?\"\n\nI'm curious...\nWhat would YOUR answer be?\nJust reply with your thoughts.\n\n– [Agent Name]"
+    },
+    {
+      subject: "Looking back...",
+      body: "Hi [Name],\n\nQuick question.\nWhat's one financial decision you've made that you're really glad you made?\nCould be buying a house.\nCould be starting a business.\nCould be something completely different.\n\nHit reply and let me know.\nI'd love to hear it.\n\n– [Agent Name]"
+    }
+  ];
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const rows = text.split('\n');
+      const parsedLeads = rows.slice(1).map(row => {
+        const cols = row.split(',');
+        if (cols.length >= 3) {
+          return {
+            name: cols[0]?.trim(),
+            phone: cols[1]?.trim(),
+            mail: cols[2]?.trim(),
+            type: cols[3]?.trim() || 'General',
+            date: cols[4]?.trim() || new Date().toLocaleDateString()
+          };
+        }
+        return null;
+      }).filter(Boolean);
+      
+      setLeads(parsedLeads);
+      setCurrentIndex(0);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleNext = () => {
+    if (currentIndex < leads.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      alert("You've reached the end of your lead list!");
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  };
+
+  const handleClearLeads = () => {
+    if(window.confirm("Are you sure you want to clear your current leads list?")) {
+      setLeads([]);
+      setCurrentIndex(0);
+      localStorage.removeItem(`agentCoach_leads_${activeUserId}`);
+      localStorage.removeItem(`agentCoach_leadIndex_${activeUserId}`);
+    }
+  };
+
+  const currentLead = leads[currentIndex];
+
+  const formatMessage = (msg, leadName, agentName) => {
+    return msg
+      .replaceAll(/\[Name\]/gi, leadName || 'there')
+      .replaceAll(/\[Nombre\]/gi, leadName || 'ahí')
+      .replaceAll(/\[Agent Name\]/gi, agentName || 'Agent');
+  };
+
+  const executeAction = (type) => {
+    if (!currentLead) return;
+    const currentData = log || {}; 
+
+    if (type === 'call' && currentLead.phone) {
+      window.open(`tel:${currentLead.phone}`, '_self');
+      onSave({ conversations: (currentData.conversations || 0) + 1 });
+    } else if (type === 'email' && currentLead.mail) {
+      const tpl = emailTemplates[selectedEmailTpl];
+      const subject = encodeURIComponent(tpl.subject);
+      const body = encodeURIComponent(formatMessage(tpl.body, currentLead.name, profile?.name));
+      window.open(`mailto:${currentLead.mail}?subject=${subject}&body=${body}`, '_self');
+      onSave({ followUpEmail: (currentData.followUpEmail || 0) + 1 });
+    } else if (type === 'sms' && currentLead.phone) {
+      const msg = smsCategories[selectedSmsCategory][selectedSmsTpl];
+      const body = encodeURIComponent(formatMessage(msg, currentLead.name, profile?.name));
+      window.open(`sms:${currentLead.phone}?body=${body}`, '_self');
+      onSave({ texts: (currentData.texts || 0) + 1 });
+    }
+    
+    setTimeout(handleNext, 1500);
+  };
+
+  if (leads.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-dashed border-amber-300 bg-amber-50/30 text-center animate-in fade-in duration-500">
+        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-amber-200">
+          <BookOpen size={32} className="text-amber-500" />
+        </div>
+        <h3 className="font-black text-slate-800 text-xl mb-2">Power Prospector</h3>
+        <p className="text-sm text-slate-500 mb-6 font-medium">Upload a CSV file (Name, Phone, Email, Type, Date) to start prospecting and scoring points automatically.</p>
+        <input type="file" accept=".csv" onChange={handleFileUpload} id="csv-upload" className="hidden" />
+        <label htmlFor="csv-upload" className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3.5 rounded-xl font-bold text-sm cursor-pointer hover:bg-slate-800 transition-all shadow-md active:scale-95">
+           Upload Leads CSV
+        </label>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header de controles */}
+      <div className="flex justify-between items-center mb-4 px-1">
+        <h2 className="text-lg font-black text-slate-900">Prospecting List</h2>
+        <button onClick={handleClearLeads} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors">
+          <Trash2 size={14} /> Clear List
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 mb-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-100">
+          <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${((currentIndex + 1) / leads.length) * 100}%` }}></div>
+        </div>
+        
+        <div className="flex justify-between items-center mb-4 mt-2">
+          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Lead {currentIndex + 1} of {leads.length}</span>
+          <div className="flex gap-2">
+            <button onClick={handlePrev} disabled={currentIndex === 0} className="text-xs font-bold text-slate-500 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors">
+              ⏮ Prev
+            </button>
+            <button onClick={handleNext} disabled={currentIndex >= leads.length - 1} className="text-xs font-bold text-slate-500 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors">
+              Skip ⏭
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-6 shadow-inner">
+          <h2 className="text-2xl font-black text-slate-900">{currentLead.name || 'Unknown Lead'}</h2>
+          <div className="flex flex-col gap-2 mt-3">
+            <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Phone size={16} className="text-slate-400"/> {currentLead.phone || 'No phone provided'}</span>
+            <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Mail size={16} className="text-slate-400"/> {currentLead.mail || 'No email provided'}</span>
+            <div className="w-full h-px bg-slate-200 my-1"></div>
+            <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Type: {currentLead.type} • Added: {currentLead.date}</span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {/* CALL SECTION */}
+          <button onClick={() => executeAction('call')} disabled={!currentLead.phone} className="w-full bg-slate-900 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-md active:scale-95">
+            <Phone size={18} /> Call Lead (+1 Point)
+          </button>
+
+          {/* SMS SECTION */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2"><MessageSquare size={16} className="text-slate-500"/> <span className="font-bold text-sm text-slate-800">Send SMS (+1 Point)</span></div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <select 
+                value={selectedSmsCategory} 
+                onChange={(e) => { setSelectedSmsCategory(e.target.value); setSelectedSmsTpl(0); }} 
+                className="w-full text-xs font-bold text-slate-700 p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
+              >
+                {Object.keys(smsCategories).map(cat => <option key={cat} value={cat}>{cat} Category</option>)}
+              </select>
+              
+              <select 
+                value={selectedSmsTpl} 
+                onChange={(e) => setSelectedSmsTpl(Number(e.target.value))} 
+                className="w-full text-xs font-bold text-slate-700 p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
+              >
+                {smsCategories[selectedSmsCategory].map((_, i) => <option key={i} value={i}>Message {i+1}</option>)}
+              </select>
+            </div>
+
+            <div className="p-3 bg-white text-xs text-slate-600 rounded-xl border border-slate-200 mb-3 shadow-inner italic leading-relaxed">
+              "{formatMessage(smsCategories[selectedSmsCategory][selectedSmsTpl], currentLead.name, profile?.name)}"
+            </div>
+
+            <button onClick={() => executeAction('sms')} disabled={!currentLead.phone} className="w-full bg-white border border-slate-300 text-slate-800 font-bold py-2.5 rounded-xl hover:bg-slate-100 disabled:opacity-50 text-sm transition-colors shadow-sm">
+              Send SMS & Next
+            </button>
+          </div>
+
+          {/* EMAIL SECTION */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-2 mb-3"><Mail size={16} className="text-slate-500"/> <span className="font-bold text-sm text-slate-800">Send Email (+1 Point)</span></div>
+            
+            <select 
+              value={selectedEmailTpl} 
+              onChange={(e) => setSelectedEmailTpl(Number(e.target.value))} 
+              className="w-full text-xs font-bold text-slate-700 p-2.5 mb-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
+            >
+              {emailTemplates.map((tpl, i) => <option key={i} value={i}>Subject: {tpl.subject}</option>)}
+            </select>
+
+            <div className="p-3 bg-white text-xs text-slate-600 rounded-xl border border-slate-200 mb-3 shadow-inner whitespace-pre-wrap leading-relaxed">
+              <span className="font-bold block mb-1">Subject: {emailTemplates[selectedEmailTpl].subject}</span>
+              {formatMessage(emailTemplates[selectedEmailTpl].body, currentLead.name, profile?.name)}
+            </div>
+
+            <button onClick={() => executeAction('email')} disabled={!currentLead.mail} className="w-full bg-white border border-slate-300 text-slate-800 font-bold py-2.5 rounded-xl hover:bg-slate-100 disabled:opacity-50 text-sm transition-colors shadow-sm">
+              Send Email & Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const [activeUserId, setActiveUserId] = useState(null);
@@ -464,7 +725,6 @@ export default function App() {
     const transVal = merged.transactionCloseAddress?.trim() ? (merged.transactionClose || 0) : 0;
     const isReferralFilled = (merged.referralName && merged.referralName.trim() !== '') || (merged.referralPhone && merged.referralPhone.trim() !== '');
 
-    // CÁLCULO DE PUNTOS ACTUALIZADO
     const basePts = (merged.followUpEmail || 0) + (merged.texts || 0) + (merged.socialPosts || 0) + (merged.contactsAdded || 0);
     const fivePts = ((merged.conversations || 0) * 5);
     const twentyFivePts = ((merged.authorityAction || 0) * 25);
@@ -556,7 +816,13 @@ export default function App() {
       )}
 
       <Header 
-        title={activeTab === 'today' ? "Today's Activities" : activeTab === 'history' ? 'Your History' : activeTab === 'summary' ? 'Weekly Summary' : activeTab === 'ranking' ? 'Weekly Ranking' : 'Coach Dashboard'} 
+        title={
+          activeTab === 'today' ? "Today's Activities" : 
+          activeTab === 'leads' ? "Lead Prospector" :
+          activeTab === 'history' ? 'Your History' : 
+          activeTab === 'summary' ? 'Weekly Summary' : 
+          activeTab === 'ranking' ? 'Weekly Ranking' : 'Coach Dashboard'
+        } 
         onLogout={handleLogout}
         profile={profile}
         unreadCount={unreadCount}
@@ -567,6 +833,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto pb-8 pt-4">
         <div className="max-w-md mx-auto p-4 space-y-6">
           {activeTab === 'today' && <TodayView dateStr={todayStr} log={myLogs.find(l => l.date === todayStr)} onSave={(updates) => handleSaveLog(todayStr, updates)} profile={profile} />}
+          {activeTab === 'leads' && <LeadsView log={myLogs.find(l => l.date === todayStr)} onSave={(updates) => handleSaveLog(todayStr, updates)} activeUserId={activeUserId} profile={profile} />}
           {activeTab === 'history' && <HistoryView logs={myLogs} onSaveLog={handleSaveLog} todayStr={todayStr} />}
           {activeTab === 'summary' && <SummaryView logs={myLogs} todayStr={todayStr} />}
           {activeTab === 'ranking' && <RankingView profiles={allProfiles} logs={logs} todayStr={todayStr} isAdmin={profile?.role === 'admin'} />}
@@ -847,7 +1114,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
       
       <div className="space-y-4">
         
-        {/* NEW SECTION FOR CONVERSATIONS */}
+        {/* SECTION FOR CONVERSATIONS */}
         <div className="py-2 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (5 POINTS EACH)</span>
@@ -856,7 +1123,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
 
         <CounterCard icon={Phone} title="Conversations" max={5} value={data.conversations || 0} onChange={(v) => onSave({ conversations: v })} />
 
-        {/* EXISTING 1 POINT SECTION */}
+        {/* 1 POINT SECTION */}
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (1 Point Each)</span>
@@ -868,7 +1135,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
         <CounterCard icon={Share2} title="Social Posts" max={2} value={data.socialPosts || 0} onChange={(v) => onSave({ socialPosts: v })} />
         <CounterCard icon={BookOpen} title="Contacts Added to CRM" max={3} value={data.contactsAdded || 0} onChange={(v) => onSave({ contactsAdded: v })} />
         
-        {/* UPDATED 5 POINT EA SECTION */}
+        {/* 25 POINT EA SECTION */}
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VALUE (25 POINTS EA/ APPT)</span>
@@ -877,6 +1144,7 @@ function TodayView({ dateStr, log, onSave, profile }) {
 
         <CounterCard icon={UserPlus} title="Appointments Today" max={5} value={data.authorityAction || 0} onChange={(v) => onSave({ authorityAction: v })} />
 
+        {/* 10 PTS SECTION */}
         <div className="py-4 flex items-center gap-4">
           <div className="h-px bg-slate-200 flex-1"></div>
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">High Value (10 Pts/Ea)</span>
