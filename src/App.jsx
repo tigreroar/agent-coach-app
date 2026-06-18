@@ -365,9 +365,10 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
   });
   
   // States for Email and SMS Template Selection
-  const [selectedSmsCategory, setSelectedSmsCategory] = useState('Database');
+  const [selectedSmsCategory, setSelectedSmsCategory] = useState('3-in-1 Contact Method');
   const [selectedSmsTpl, setSelectedSmsTpl] = useState(0);
   const [selectedEmailTpl, setSelectedEmailTpl] = useState(0);
+  const [showVmScript, setShowVmScript] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(`agentCoach_leads_${activeUserId}`, JSON.stringify(leads));
@@ -376,6 +377,9 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
 
   // Data for SMS
   const smsCategories = {
+    '3-in-1 Contact Method': [
+      "Hi [Name], I just left you a voicemail.\nI came across something that may be relevant to your real estate plans. Not sure if it applies to you, but if it does, you'll probably want to know about it.\nCall or text me when you get a minute."
+    ],
     Database: [
       "Hi [Name], it's been a while since we've connected. How have you and the family been? What's new in your world?",
       "Hi [Name], quick question: if you could change one thing about your home right now; without worrying about cost...what would it be?",
@@ -395,6 +399,10 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
 
   // Data for Email
   const emailTemplates = [
+    {
+      subject: "[Name], quick question",
+      body: "Hi [Name],\nI just left you a voicemail.\nI came across something that made me think of you and your real estate plans.\nIt may not apply to your situation, but if it does, you'll probably want to know about it before making any decisions.\nCall, text, or reply when you have a moment.\n\n– [Agent Name]"
+    },
     {
       subject: "Curious what you'd do...",
       body: "Hi [Name],\n\nI was having a conversation today and it made me think of a question:\n\nIf someone offered you 20% more than you paid for your home, would you sell it?\nWhy or why not?\n\nJust hit reply. I'm curious to see how people think about it.\n\n– [Agent Name]"
@@ -440,6 +448,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
   const handleNext = () => {
     if (currentIndex < leads.length - 1) {
       setCurrentIndex(prev => prev + 1);
+      setShowVmScript(false);
     } else {
       alert("You've reached the end of your lead list!");
     }
@@ -448,6 +457,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
   const handlePrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
+      setShowVmScript(false);
     }
   };
 
@@ -455,6 +465,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
     if(window.confirm("Are you sure you want to clear your current leads list?")) {
       setLeads([]);
       setCurrentIndex(0);
+      setShowVmScript(false);
       localStorage.removeItem(`agentCoach_leads_${activeUserId}`);
       localStorage.removeItem(`agentCoach_leadIndex_${activeUserId}`);
     }
@@ -478,18 +489,18 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
       onSave({ conversations: (currentData.conversations || 0) + 1 });
     } else if (type === 'email' && currentLead.mail) {
       const tpl = emailTemplates[selectedEmailTpl];
-      const subject = encodeURIComponent(tpl.subject);
+      const subject = encodeURIComponent(formatMessage(tpl.subject, currentLead.name, profile?.name));
       const body = encodeURIComponent(formatMessage(tpl.body, currentLead.name, profile?.name));
       window.open(`mailto:${currentLead.mail}?subject=${subject}&body=${body}`, '_self');
       onSave({ followUpEmail: (currentData.followUpEmail || 0) + 1 });
+      setTimeout(handleNext, 1500);
     } else if (type === 'sms' && currentLead.phone) {
       const msg = smsCategories[selectedSmsCategory][selectedSmsTpl];
       const body = encodeURIComponent(formatMessage(msg, currentLead.name, profile?.name));
       window.open(`sms:${currentLead.phone}?body=${body}`, '_self');
       onSave({ texts: (currentData.texts || 0) + 1 });
+      setTimeout(handleNext, 1500);
     }
-    
-    setTimeout(handleNext, 1500);
   };
 
   if (leads.length === 0) {
@@ -502,7 +513,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
         <p className="text-sm text-slate-500 mb-6 font-medium">Upload a CSV file (Name, Phone, Email, Type, Date) to start prospecting and scoring points automatically.</p>
         <input type="file" accept=".csv" onChange={handleFileUpload} id="csv-upload" className="hidden" />
         <label htmlFor="csv-upload" className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3.5 rounded-xl font-bold text-sm cursor-pointer hover:bg-slate-800 transition-all shadow-md active:scale-95">
-           Upload Leads CSV
+            Upload Leads CSV
         </label>
       </div>
     );
@@ -528,7 +539,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest">Lead {currentIndex + 1} of {leads.length}</span>
           <div className="flex gap-2">
             <button onClick={handlePrev} disabled={currentIndex === 0} className="text-xs font-bold text-slate-500 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors">
-              ⏮ Prev
+              外观 Prev
             </button>
             <button onClick={handleNext} disabled={currentIndex >= leads.length - 1} className="text-xs font-bold text-slate-500 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-lg disabled:opacity-40 transition-colors">
               Skip ⏭
@@ -548,9 +559,38 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
 
         <div className="space-y-4">
           {/* CALL SECTION */}
-          <button onClick={() => executeAction('call')} disabled={!currentLead.phone} className="w-full bg-slate-900 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-md active:scale-95">
-            <Phone size={18} /> Call Lead (+1 Point)
-          </button>
+          <div className="space-y-2">
+            <button 
+              onClick={() => {
+                executeAction('call');
+                setShowVmScript(true);
+              }} 
+              disabled={!currentLead.phone} 
+              className="w-full bg-slate-900 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-md active:scale-95"
+            >
+              <Phone size={18} /> Call Lead (+1 Point)
+            </button>
+            
+            <div className="bg-amber-50/40 border border-amber-200 rounded-2xl p-4">
+              <button
+                type="button"
+                onClick={() => setShowVmScript(!showVmScript)}
+                className="w-full flex justify-between items-center text-xs font-black text-amber-600 uppercase tracking-wider"
+              >
+                <span>{showVmScript ? '👇 Hide Voicemail Script' : '📞 Show Voicemail Script (If no answer)'}</span>
+              </button>
+              
+              {showVmScript && (
+                <div className="mt-3 p-3 bg-white text-xs text-slate-700 rounded-xl border border-amber-100 shadow-inner italic leading-relaxed whitespace-pre-wrap animate-in fade-in slide-in-from-top-1 duration-200">
+                  "Hi <span className="font-bold text-slate-900">{currentLead.name || 'there'}</span>, it's <span className="font-bold text-slate-900">{profile?.name || 'Agent'}</span>.{"\n"}
+                  I came across something today that made me think of you.{"\n"}
+                  I'm not sure if it applies to your situation, but if it does, you'll probably want to know about it sooner rather than later.{"\n"}
+                  Give me a call when you get a chance.{"\n"}
+                  My number is <span className="font-bold text-slate-900">{profile?.phone || '[Your Phone]'}</span>."
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* SMS SECTION */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
@@ -561,10 +601,17 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
             <div className="grid grid-cols-2 gap-2 mb-3">
               <select 
                 value={selectedSmsCategory} 
-                onChange={(e) => { setSelectedSmsCategory(e.target.value); setSelectedSmsTpl(0); }} 
+                onChange={(e) => { 
+                  const cat = e.target.value;
+                  setSelectedSmsCategory(cat); 
+                  setSelectedSmsTpl(0); 
+                  if (cat === '3-in-1 Contact Method') {
+                    setSelectedEmailTpl(0);
+                  }
+                }} 
                 className="w-full text-xs font-bold text-slate-700 p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
               >
-                {Object.keys(smsCategories).map(cat => <option key={cat} value={cat}>{cat} Category</option>)}
+                {Object.keys(smsCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
               
               <select 
@@ -576,7 +623,7 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
               </select>
             </div>
 
-            <div className="p-3 bg-white text-xs text-slate-600 rounded-xl border border-slate-200 mb-3 shadow-inner italic leading-relaxed">
+            <div className="p-3 bg-white text-xs text-slate-600 rounded-xl border border-slate-200 mb-3 shadow-inner italic leading-relaxed whitespace-pre-wrap">
               "{formatMessage(smsCategories[selectedSmsCategory][selectedSmsTpl], currentLead.name, profile?.name)}"
             </div>
 
@@ -594,11 +641,15 @@ const LeadsView = ({ log, onSave, activeUserId, profile }) => {
               onChange={(e) => setSelectedEmailTpl(Number(e.target.value))} 
               className="w-full text-xs font-bold text-slate-700 p-2.5 mb-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-400"
             >
-              {emailTemplates.map((tpl, i) => <option key={i} value={i}>Subject: {tpl.subject}</option>)}
+              {emailTemplates.map((tpl, i) => (
+                <option key={i} value={i}>
+                  Subject: {formatMessage(tpl.subject, currentLead.name, profile?.name)}
+                </option>
+              ))}
             </select>
 
             <div className="p-3 bg-white text-xs text-slate-600 rounded-xl border border-slate-200 mb-3 shadow-inner whitespace-pre-wrap leading-relaxed">
-              <span className="font-bold block mb-1">Subject: {emailTemplates[selectedEmailTpl].subject}</span>
+              <span className="font-bold block mb-1">Subject: {formatMessage(emailTemplates[selectedEmailTpl].subject, currentLead.name, profile?.name)}</span>
               {formatMessage(emailTemplates[selectedEmailTpl].body, currentLead.name, profile?.name)}
             </div>
 
@@ -661,7 +712,7 @@ export default function App() {
       const { data: msgData } = await supabase.from('messages').select('*').order('createdAt', { ascending: false });
       if (msgData) setMessages(msgData);
 
-      setLoading(false);
+      loading && setLoading(false);
     };
 
     fetchAllData();
@@ -1259,7 +1310,6 @@ function SummaryView({ logs, todayStr }) {
     referrals: weeklyLogs.reduce((sum, l) => sum + (( (l.referralName && l.referralName.trim() !== '') || (l.referralPhone && l.referralPhone.trim() !== '') ) ? 1 : 0), 0)
   };
 
-  const totalItems = Object.values(totals).reduce((a, b) => a + b, 0);
   const weeklyScore = weeklyLogs.reduce((sum, l) => sum + (l.score || 0), 0);
   
   const daysLogged = weeklyLogs.filter(l => {
